@@ -122,29 +122,29 @@ cdef inline double BJ1(double value) noexcept nogil:
 cdef void Input_num(double[:, :] Data_array, double* z, double* nu, double* E,
                    double* evaluation, int index_point) noexcept nogil:
     z[0] = 0.0
-    z[1] = Data_array[0, 3] 
-    z[2] = Data_array[1, 3] + z[1]
-    z[3] = Data_array[2, 3] + z[2]
-    z[4] = Data_array[3, 3] + z[3]
+    z[1] = Data_array[2, 3] 
+    z[2] = Data_array[3, 3] + z[1]
+    z[3] = Data_array[4, 3] + z[2]
+    z[4] = Data_array[5, 3] + z[3]
     z[5] = 1e10
     
     # poisson's ratio
     nu[0] = 0.0
-    nu[1] = Data_array[0, 2]
-    nu[2] = Data_array[1, 2]
-    nu[3] = Data_array[2, 2]
-    nu[4] = Data_array[3, 2]
-    nu[5] = Data_array[4, 2]
+    nu[1] = Data_array[2, 2]
+    nu[2] = Data_array[3, 2]
+    nu[3] = Data_array[4, 2]
+    nu[4] = Data_array[5, 2]
+    nu[5] = Data_array[6, 2]
 
     # Young's modulus
     E[0] = 0.0
-    E[1] = Data_array[0, 1]
-    E[2] = Data_array[1, 1]
-    E[3] = Data_array[2, 1]
-    E[4] = Data_array[3, 1]
-    E[5] = Data_array[4, 1]
+    E[1] = Data_array[2, 1]
+    E[2] = Data_array[3, 1]
+    E[3] = Data_array[4, 1]
+    E[4] = Data_array[5, 1]
+    E[5] = Data_array[6, 1]
 
-    evaluation[0] = Data_array[index_point, 8]
+    evaluation[0] = Data_array[index_point, 6]
     evaluation[1] = 0
 
 @cython.cdivision(True)
@@ -687,21 +687,11 @@ cdef double gaussian_quadrature_integrate(double* z, double* nu, double* E,
     cdef double interval_integral = 0
     cdef double[2] exp_term  
     cdef double A, B, C, D
-    cdef long n_points_number = <long>floor(sqrt(zeros[1]))
-    cdef long eva = 6 / (<long>floor(evaluation[0] / a) + 1) + 4
-    n_points_array[0] =  n_points_number * 4 + 8
-    n_points_array[1] =  n_points_number * 2 + 8
-    n_points_array[2] =  n_points_number + 7
-    n_points_array[3] =  n_points_number + 6
-    n_points_array[4] =  n_points_number + 5
-    n_points_array[5] =  n_points_number + 5
-    n_points_array[6] =  n_points_number + 3
-    n_points_array[7] =  n_points_number + 3
-    n_points_array[8] =  n_points_number + 3
-    n_points_array[9] =  n_points_number + 2
-    n_points_array[10] = n_points_number + 2
-    for i in range (intervals-11):
-        n_points_array[i+11] = n_points_number + 1
+    
+    cdef long n_points_number = <long>sqrt(zeros[1])
+    cdef long eva = <long>(2 * (3 + floor(3 / ((evaluation[0] / a) + 1))))
+    for i in range (intervals):
+        n_points_array[i] = <long>(ceil(n_points_number + 2 / sqrt(i + 1))) * 4
     if Type == 0:
         for i in range(intervals-1):
             interval_integral = 0
@@ -716,10 +706,10 @@ cdef double gaussian_quadrature_integrate(double* z, double* nu, double* E,
                     Integrand_IA(index, points, weights, b, Coe, ipiv)
                 exp_term[0] = exp(points[j] * (evaluation[1] / H - z[index] / H))  
                 exp_term[1] = exp(- points[j] * (evaluation[1] / H - z[index - 1] / H))
-                A = Coe[index * 4 - 4] * exp_term[0]
-                B = - Coe[index * 4 - 3] * exp_term[1]
-                C = - Coe[index * 4 - 2] * (2 - 4 * nu[index] - points[j] * evaluation[1] / H) * exp_term[0]
-                D = - Coe[index * 4 - 1] * (2 - 4 * nu[index] + points[j] * evaluation[1] / H) * exp_term[1]
+                A = Coe[index * 4 - 4] * exp_term[0]      ### Coe[1] is A1
+                B = - Coe[index * 4 - 3] * exp_term[1]    ### Coe[2] is B1
+                C = - Coe[index * 4 - 2] * (2 - 4 * nu[index] - points[j] * evaluation[1] / H) * exp_term[0]    ### Coe[3] is C1
+                D = - Coe[index * 4 - 1] * (2 - 4 * nu[index] + points[j] * evaluation[1] / H) * exp_term[1]    ### Coe[4] is D1
                 integrand = weights[j] / points[j] * (A + B + C + D) * BJ0(points[j] * evaluation[0] / H) * BJ1(points[j] * a / H) 
                 interval_integral += integrand 
 
@@ -765,11 +755,11 @@ def Calculation(double[:, :] Data_array):
     ## define the parameters
     global Coe_Matrix
     global Coe_Matrix_copy
-    cdef int num_cols = Data_array.shape[0]
+    cdef int num_cols = 10
     cdef int index, i, ii
-    cdef int alpha = <int>Data_array[0, 10]
-    cdef double q = Data_array[0, 5]
-    cdef double a = Data_array[0, 6]
+    cdef int alpha = 1
+    cdef double q = Data_array[10, 1]
+    cdef double a = Data_array[10, 3]
     cdef double[6] z
     cdef double[6] nu
     cdef double[6] E
@@ -787,7 +777,7 @@ def Calculation(double[:, :] Data_array):
     cdef double *zeros
     cdef double[64] weights
     cdef double[64] points
-    cdef double[7] result_displacement
+    cdef double[10] result_displacement
     Input_num(Data_array, z, nu, E, evaluation, num_cols)
     H = z[4]
     index = index_search(z, evaluation)
@@ -814,4 +804,4 @@ def Calculation(double[:, :] Data_array):
     cdef double result_stress = gaussian_quadrature_integrate(z, nu, E, evaluation, H, q, a, alpha, F1, F2, F3, zeros, 1, 121, index, points, weights, Coe_matrix, b, Coe, ipiv)
     free(zeros)
     
-    return result_stress, result_displacement[0], result_displacement[1], result_displacement[2], result_displacement[3], result_displacement[4], result_displacement[5], result_displacement[6]
+    return result_stress, result_displacement[0], result_displacement[1], result_displacement[2], result_displacement[3], result_displacement[4], result_displacement[5], result_displacement[6], result_displacement[7], result_displacement[8], result_displacement[9]
