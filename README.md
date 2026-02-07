@@ -1,0 +1,51 @@
+# WuWan: High-Performance Layered Elastic Half-Space Solver
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-yellow)](https://www.python.org/)
+[![C++](https://img.shields.io/badge/C%2B%2B-17-red)](https://isocpp.org/)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
+
+**WuWan** is a high-performance computational library designed for the forward and inverse analysis of pavement mechanics. It solves deflections in a **5-layer elastic half-space** system with exceptional speed and accuracy.
+
+Built with a modern **C++ backend** (relying on Boost and Eigen) and wrapped for **Python**, it leverages analytical gradients and custom linear algebra optimizations to achieve millisecond-level inversions.
+
+---
+
+## 🚀 Key Features
+
+* **High-Performance Core**: Originally a Cython project, now fully rewritten in C++ for maximum efficiency.
+* **Analytical Gradients**: Implements analytical derivatives for Jacobian calculations, significantly outperforming finite difference methods in stability and speed.
+* **Advanced Back-Calculation**:
+    * Utilizes `scipy.optimize` combined with high-speed C++ gradient providers.
+    * Solves inverse problems in **tens of milliseconds**.
+* **Robust Error Modeling**: Supports noise injection for thickness, deflection, load, and sensor positioning to simulate real-world measurement uncertainties.
+* **Optimized Math**:
+    * Gauss-Legendre quadrature for integral transform.
+    * Hand-written **fixed-size banded matrix LU decomposition** for solving boundary value problems.
+
+## 📊 Performance Benchmarks
+
+Benchmarks performed on a standard workstation (Single-threaded):
+
+| Operation | Batch Size | Computation Time | Note |
+| :--- | :--- | :--- | :--- |
+| **Forward Calculation** | 10,000 calls (10 points/call) | **~1.5 seconds** | Pure deflection calculation |
+| **Forward + Gradient** | 10,000 calls | **~3.5 seconds** | Deflection + Jacobian w.r.t moduli |
+| **Inverse Analysis** | Single Basin | **~10 - 50 ms** | Dependent on convergence criteria |
+
+> **Note:** The solver is optimized to handle large-scale batch processing for sensitivity analysis and probabilistic inversion.
+
+## 🛠 Installation & Dependencies
+
+### Prerequisites
+* **C++ Compiler** supporting C++14/17
+* **Boost Math Library**
+* **Eigen3 Linear Algebra Library**
+* **Python 3.x**
+
+### Building from Source
+
+```bash
+git clone [https://github.com/lewiswan/WuWan.git](https://github.com/lewiswan/WuWan.git)
+cd WuWan
+pip install .
