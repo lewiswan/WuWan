@@ -1,0 +1,17 @@
+[build-system]
+requires = ["scikit-build-core", "pybind11", "numpy"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "WuWan_pavement_forward"
+version = "0.3.1"
+dependencies = [
+    "numpy==1.26.4", 
+    "pandas==2.3.3"
+]
+
+
+[tool.scikit-build]
+
+cmake.build-type = "Release"
+cmake.verbose = true  

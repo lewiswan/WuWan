@@ -1,0 +1,12 @@
+Layer,Modulus [MPa],Poisson [-],Thickness [mm],,Evaluation point,r [mm],Deflection [μm]
+Layered System,Layered System,Layered System,Layered System,,Evaluation point #,r [mm],Deflection [μm]
+layer #,Modulus [MPa],Poisson [-],Thickness [mm],,1,0,660.51133
+1,10471.589484739894,0.30,50,,2,300,344.71229
+2,373.63021237960254,0.35,200,,3,600,220.93542
+3,334.79311874245104,0.35,300,,4,900,170.4919
+4,182.21017696797256,0.40,600,,5,1200,139.30202
+5,99.75320311661116,0.40,semi-inf,,6,1500,117.31299
+,,,,,7,1800,100.74293
+,,,,,8,2000,91.83003
+,,,,,9,3000,62.17525
+Stress [MPa],0.95,Radius [mm],150,,10,4000,46.11301
