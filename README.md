@@ -19,9 +19,18 @@ Built with a modern **C++ backend** (relying on Boost and Eigen) and wrapped for
     * Utilizes `scipy.optimize` combined with high-speed C++ gradient providers.
     * Solves inverse problems in **tens of milliseconds**.
 * **Robust Error Modeling**: Supports noise injection for thickness, deflection, load, and sensor positioning to simulate real-world measurement uncertainties.
-* **Optimized Math**:
-    * Gauss-Legendre quadrature for integral transform.
-    * Hand-written **fixed-size banded matrix LU decomposition** for solving boundary value problems.
+
+---
+
+## 🧠 Methodology
+
+The core algorithm solves the Layered Elastic Theory (LET) equations using advanced numerical techniques:
+
+1.  **Hankel Transform**: The integral transform is converted into algebraic equations using high-precision **Gauss-Legendre quadrature**.
+2.  **System Solving**: Instead of using generic solvers, WuWan employs a **custom implementation of LU decomposition**. This is specifically optimized for the sparse, banded structure of the 5-layer system matrices, reducing memory overhead and computation time.
+3.  **Gradient Computation**: The Jacobian matrix is computed via **analytical derivation** of the stiffness matrix. This allows for precise sensitivity analysis without the computational overhead or truncation errors associated with numerical differentiation.
+
+---
 
 ## 📊 Performance Benchmarks
 
@@ -34,6 +43,19 @@ Benchmarks performed on a standard workstation (Single-threaded):
 | **Inverse Analysis** | Single Basin | **~10 - 50 ms** | Dependent on convergence criteria |
 
 > **Note:** The solver is optimized to handle large-scale batch processing for sensitivity analysis and probabilistic inversion.
+
+---
+
+## 🔮 Roadmap
+
+- [x] **C++ Core Rewrite**: Transformed from Cython to C++ with Eigen/Boost.
+- [x] **Forward Calculation & Analytical Gradients**: Implementation of high-speed forward modeling and derivative calculation.
+- [x] **Deterministic Back-calculation**: Fast inverse analysis for moduli estimation.
+- [ ] **Bayesian Uncertainty Analysis**: Implementation of MCMC or variational inference for posterior distributions (In Progress).
+- [ ] **Global Sensitivity Analysis**: Sobol indices or similar methods to quantify parameter influence (In Progress).
+- [ ] **Batch Error Simulation**: Wrappers for large-scale Monte Carlo simulations with noise injection.
+
+---
 
 ## 🛠 Installation & Dependencies
 
