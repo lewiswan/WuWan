@@ -59,31 +59,30 @@ import time
 import numpy as np
 import pandas as pd
 import WuWan_pavement_forward
-
-# 1. Define Layered System Parameters (Example from demo_forward.pdf)
 data = {
-    'Modulus [MPa]': [4000, 400, 300, 200, 100],
-    'Poisson [-]': [0.30, 0.35, 0.35, 0.40, 0.45],
-    'Thickness [mm]': [150, 240, 300, 500, 0], # 0 for semi-infinite layer
-    'Load': [0.707, 150] # Pressure [MPa] and Radius [mm]
-}
-
-# 2. Prepare Evaluation Points (0 to 4000 mm)
-r_coords = [0, 300, 600, 900, 1200, 1500, 1800, 2000, 3000, 4000]
-
-# 3. Data Preparation for C++ Backend
+        'Layer':            ['Layered System', 'layer #', '1', '2', '3', '4', '5', '', '', '','Stress [MPa]'],
+        'Modulus [MPa]':    ['Layered System', 'Modulus [MPa]', '4000', '400', '300', '200', '100', '', '', '','0.95'],
+        'Poisson [-]':      ['Layered System', 'Poisson [-]', '0.30', '0.35', '0.35', '0.40', '0.40', '', '', '', 'Radius [mm]'],
+        'Thickness [mm]':   ['Layered System', 'Thickness [mm]', '150', '240', '300', '500', 'semi-inf', '', '', '','150'],
+        '':  ['', '', '', '', '', '', '', '', '', '', ''],
+        'Evaluation point': ['Evaluation point #', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10' ],
+        'r [mm]':           ['r [mm]', '0', '300', '600', '900', '1200', '1500', '1800', '2000', '3000', '4000'],
+        'Deflection [μm]':  ['Deflection [μm]', '', '', '', '', '', '', '', '', '', ''],
+        }
 df = pd.DataFrame(data)
+df = pd.DataFrame.from_dict(data, orient='index')
+df.to_csv('data.csv', index=False)
+
 df_num = df.apply(pd.to_numeric, errors='coerce').fillna(0.0)
-# Ensure memory is contiguous for the C++ pointer
-input_data = np.ascontiguousarray(df_num.to_numpy().T, dtype=np.float64)
-
-# 4. Execution
+arr = df_num.to_numpy()
+arr = np.ascontiguousarray(df_num.to_numpy(), dtype=np.float64)
+input_data = np.ascontiguousarray(arr.T)
+# === Call C++ ===
 print("Python: Calling C++...")
-# calc_grad=True enables the computation of analytical Jacobians
 ret = WuWan_pavement_forward.Calculation(input_data, calc_grad=True)
-
-print("Deflections:", ret.result_displacement)
-print("Gradients (J_E):", ret.J_E)
+end = time.perf_counter()
+print("deflections:", ret.result_displacement)
+print("grad:", ret.J_E)
 ```
 
 ### 2. Output & Visualization
@@ -94,6 +93,26 @@ The solver generates the surface deflection basin profile. Below are the results
 Python: Calling C++...
 deflections: [0.44186744 0.30873646 0.21676407 0.16808461 0.13797657 0.11674337 
                0.10064475 0.09188363 0.0624335  0.04627289]
+grad: [[-2.48956993e-05 -2.35325278e-04 -2.04079722e-04 -2.63150101e-04
+  -1.34300592e-03]
+ [-5.45282398e-06 -1.37737859e-04 -1.68268547e-04 -2.43524360e-04
+  -1.32644585e-03]
+ [-8.72171458e-07 -4.12614680e-05 -9.94771277e-05 -1.95007054e-04
+  -1.27926249e-03]
+ [-6.48066584e-07 -7.45964845e-06 -4.64284696e-05 -1.38462798e-04
+  -1.20887387e-03]
+ [-6.40643617e-07  6.83431698e-07 -1.78697327e-05 -8.93774172e-05
+  -1.12450960e-03]
+ [-5.31834037e-07  2.23559776e-06 -4.80736168e-06 -5.30852137e-05
+  -1.03451018e-03]
+ [-4.05946534e-07  2.41149686e-06  8.08046065e-07 -2.85735311e-05
+  -9.45132738e-04]
+ [-3.33276661e-07  2.32692214e-06  2.57471518e-06 -1.73096406e-05
+  -8.87917836e-04]
+ [-1.12120438e-07  1.37095054e-06  3.73979321e-06  5.75100302e-06
+  -6.48055323e-04]
+ [-3.64239311e-08  5.61953149e-07  2.21478585e-06  7.54918589e-06
+  -4.85262516e-04]]
 ```
 ![Deflection Profile](demo_figure/wuwan_deflection_profile.png)
 
