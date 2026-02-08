@@ -1,0 +1,9 @@
+0,1,2,3,4,5,6,7,8,9,10
+Layered System,layer #,1,2,3,4,5,,,,Stress [MPa]
+Layered System,Modulus [MPa],4000,400,300,200,100,,,,0.95
+Layered System,Poisson [-],0.30,0.35,0.35,0.40,0.40,,,,Radius [mm]
+Layered System,Thickness [mm],150,240,300,500,semi-inf,,,,150
+,,,,,,,,,,
+Evaluation point #,1,2,3,4,5,6,7,8,9,10
+r [mm],0,300,600,900,1200,1500,1800,2000,3000,4000
+Deflection [μm],,,,,,,,,,

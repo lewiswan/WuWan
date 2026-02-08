@@ -46,6 +46,59 @@ Benchmarks performed on a standard workstation (Single-threaded):
 
 ---
 
+## ⚡ Quick Start: Forward Calculation
+
+This example demonstrates how to perform a high-speed forward calculation for a 5-layer pavement system and retrieve both deflections and analytical gradients (Jacobian) using the **WuWan** C++ backend.
+
+### 1. Setup Data and Call Solver
+
+The following logic follows the standard workflow: defining the structure, preparing contiguous memory for C++, and executing the solver.
+
+```python
+import time
+import numpy as np
+import pandas as pd
+import WuWan_pavement_forward
+
+# 1. Define Layered System Parameters (Example from demo_forward.pdf)
+data = {
+    'Modulus [MPa]': [4000, 400, 300, 200, 100],
+    'Poisson [-]': [0.30, 0.35, 0.35, 0.40, 0.45],
+    'Thickness [mm]': [150, 240, 300, 500, 0], # 0 for semi-infinite layer
+    'Load': [0.707, 150] # Pressure [MPa] and Radius [mm]
+}
+
+# 2. Prepare Evaluation Points (0 to 4000 mm)
+r_coords = [0, 300, 600, 900, 1200, 1500, 1800, 2000, 3000, 4000]
+
+# 3. Data Preparation for C++ Backend
+df = pd.DataFrame(data)
+df_num = df.apply(pd.to_numeric, errors='coerce').fillna(0.0)
+# Ensure memory is contiguous for the C++ pointer
+input_data = np.ascontiguousarray(df_num.to_numpy().T, dtype=np.float64)
+
+# 4. Execution
+print("Python: Calling C++...")
+# calc_grad=True enables the computation of analytical Jacobians
+ret = WuWan_pavement_forward.Calculation(input_data, calc_grad=True)
+
+print("Deflections:", ret.result_displacement)
+print("Gradients (J_E):", ret.J_E)
+```
+
+### 2. Output & Visualization
+
+The solver generates the surface deflection basin profile. Below are the results from the demo:
+
+```Plaintext
+Python: Calling C++...
+deflections: [0.44186744 0.30873646 0.21676407 0.16808461 0.13797657 0.11674337 
+               0.10064475 0.09188363 0.0624335  0.04627289]
+```
+![Deflection Profile](demo_figure/wuwan_deflection_profile.png)
+
+---
+
 ## 🔮 Roadmap
 
 - [x] **C++ Core Rewrite**: Transformed from Cython to C++ with Eigen/Boost.
