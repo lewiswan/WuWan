@@ -67,17 +67,31 @@ Benchmarks performed on a standard workstation (Single-threaded):
 
 ### Building from Source
 
+#### Clone the Repository
 ```bash
-git clone [https://github.com/lewiswan/WuWan.git](https://github.com/lewiswan/WuWan.git)
+git clone https://github.com/lewiswan/WuWan.git
 cd WuWan
-### Option A: Standard Installation (Recommended for Users)
-This method automatically sets up a build environment, downloads necessary C++ libraries (Eigen & Boost), and compiles the project.
-pip install .
-#### Note: The first installation may take a few minutes as it downloads the Boost C++ headers.
+```
 
-### Option B: Fast Re-installation (Recommended for Developers)
+#### Option A: Standard Installation (Recommended for Users)
+
+This method automatically sets up a build environment, downloads necessary C++ libraries (Eigen & Boost), and compiles the project.
+```bash
+pip install .
+```
+
+**Note:** The first installation may take a few minutes as it downloads the Boost C++ headers.
+
+#### Option B: Fast Re-installation (Recommended for Developers)
+
 If you are modifying the C++ code or reinstalling frequently, use this method. It utilizes build isolation disabled to persist the CMake cache. This prevents re-downloading Boost/Eigen on every build, reducing compile time to seconds.
-1. Install build tools (One-time setup):
+
+1. Install build tools (one-time setup):
+```bash
 pip install cmake ninja pybind11
+```
+
 2. Fast install command:
+```bash
 pip install . --no-build-isolation --no-deps --force-reinstall
+```
