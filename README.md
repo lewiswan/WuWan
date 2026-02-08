@@ -42,7 +42,7 @@ Benchmarks performed on a standard workstation (Single-threaded):
 | **Forward + Gradient** | 10,000 calls | **~3.5 seconds** | Deflection + Jacobian w.r.t moduli |
 | **Inverse Analysis** | Single Basin | **~10 - 50 ms** | Dependent on convergence criteria |
 
-> **Note:** The solver is optimized to handle large-scale batch processing for sensitivity analysis and probabilistic inversion.
+> **Note:** The solver is optimized to handle large-scale batch processing for sensitivity analysis and probabilistic inversion. The performance test platform is MacOs with M4 CPU.
 
 ---
 
@@ -115,6 +115,59 @@ grad: [[-2.48956993e-05 -2.35325278e-04 -2.04079722e-04 -2.63150101e-04
   -4.85262516e-04]]
 ```
 ![Deflection Profile](demo_figure/wuwan_deflection_profile.png)
+*Methodology Note: The left axis represents the physical depth of the pavement layers ($z$). The right axis represents the vertical surface deflection ($w$), which is magnified 1000x for visibility.*
+
+## ⚡ Quick Start: Inverse Calculation
+
+This example demonstrates how to perform back-calculation (inversion) to determine layer moduli from deflection data. This can be executed via the `WuWan_pavement_inverse.py` script or the **WuWanGUI**.
+
+### 3. Inversion Setup & Noise Simulation
+
+To simulate real-world FWD (Falling Weight Deflectometer) conditions, we use a synthetic dataset where the "True" moduli are known ($E_{true} = [8000, 400, 300, 200, 100]$ MPa).
+
+**Random noise** is intentionally added to the input parameters—including all layer thicknesses, sensor positions, and load—before the solver sees them. This tests the robustness of the **WuWan** backend against measurement errors.
+
+| Parameter | Original Value | Added Noise (Simulated Error) | Modified Input (Solver Sees) |
+| :--- | :--- | :--- | :--- |
+| **Load** | 0.95 MPa | $+0.006$ MPa | **0.956 MPa** |
+| **Thickness L1** | 50.0 mm | $+1.92$ mm | **51.92 mm** |
+| **Thickness L2** | 200.0 mm | $-1.05$ mm | **198.95 mm** |
+| **Thickness L3** | 300.0 mm | $-1.16$ mm | **298.84 mm** |
+| **Thickness L4** | 600.0 mm | $+8.03$ mm | **608.03 mm** |
+| **Sensor (r=300)** | 300.0 mm | $+1.82$ mm | **301.82 mm** |
+| **Sensor (r=600)** | 600.0 mm | $+0.20$ mm | **600.20 mm** |
+| **...** | ... | ... | ... |
+
+*(Note: Noise was applied to all 9 sensor positions and deflection readings as shown in the error analysis log.)*
+
+### 4. Results & Visualization
+
+The solver attempts to recover the moduli by minimizing the error between calculated and measured deflections. Despite significant noise in the inputs, the optimizer converges in **0.010 seconds**.
+
+#### Modulus Comparison (True vs. Back-calculated)
+
+The table below visualizes the accuracy of the inversion. Note that due to the added noise in thickness and load, the solver correctly finds the *effective* modulus that satisfies the physical equilibrium, which may deviate slightly from the theoretical "True" value.
+
+| Layer | True Modulus ($E_{true}$) | Initial Guess | **Calculated Modulus ($E_{calc}$)** | Deviation |
+| :--- | :--- | :--- | :--- | :--- |
+| **1 (Surface)** | **8000 MPa** | 7542.5 MPa | **7327.8 MPa** | -8.4% |
+| **2 (Base)** | **400 MPa** | 373.9 MPa | **407.5 MPa** | +1.9% |
+| **3 (Subbase)** | **300 MPa** | 322.9 MPa | **287.1 MPa** | -4.3% |
+| **4 (Soil)** | **200 MPa** | 189.9 MPa | **207.9 MPa** | +4.0% |
+| **5 (Subgrade)** | **100 MPa** | 98.6 MPa | **100.1 MPa** | **+0.1%** |
+
+> **Observation:** The subgrade modulus (Layer 5) is recovered with extremely high accuracy (**0.1% error**), which is critical for structural evaluation. The surface layer shows higher deviation, which is expected when thickness noise (approx. 4% error on L1 thickness) is introduced.
+
+#### Optimization Performance
+
+The **WuWan** C++ backend utilizes analytical gradients (Jacobian) to accelerate convergence.
+
+* **Total Run Time:** `0.010 seconds`
+* **Total C++ Calls:** `21`
+* **Gradient Calculations:** `6`
+* **Final Cost (Residual):** `8.69e-05`
+
+*(Note: Representation of cost reduction over 15 iterations)*
 
 ---
 
