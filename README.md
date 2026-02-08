@@ -59,15 +59,192 @@ Benchmarks performed on a standard workstation (Single-threaded):
 
 ## 🛠 Installation & Dependencies
 
-### Prerequisites
-* **C++ Compiler** supporting C++14/17
-* **Boost Math Library**
-* **Eigen3 Linear Algebra Library**
-* **Python 3.x**
+### System Requirements
 
-### Building from Source
+- **Operating System**: Linux (Ubuntu/Debian), macOS, Windows (WSL2 recommended)
+- **Python**: 3.8 or higher
+- **C++ Compiler**: 
+  - Linux: GCC 7+ or Clang 6+
+  - macOS: Xcode Command Line Tools (Clang)
+  - Windows: MSVC 2017+ or MinGW-w64
+- **CMake**: 3.15 or higher
 
+---
+
+### Installation Steps
+
+#### Linux (Ubuntu/Debian)
 ```bash
-git clone [https://github.com/lewiswan/WuWan.git](https://github.com/lewiswan/WuWan.git)
+# Update package index
+sudo apt-get update
+
+# Install build tools
+sudo apt-get install -y build-essential cmake git
+
+# Install Boost (including Boost.Math)
+sudo apt-get install -y libboost-all-dev
+
+# Install Eigen3
+sudo apt-get install -y libeigen3-dev
+
+# Install Python development headers
+sudo apt-get install -y python3-dev python3-pip
+
+# Verify installations
+cmake --version          # Should show >= 3.15
+gcc --version            # Should show >= 7.0
+python3 --version        # Should show >= 3.8
+
+# Check library paths (optional)
+dpkg -L libeigen3-dev | grep eigen3
+dpkg -L libboost-dev | grep boost
+
+# Clone the repository
+git clone https://github.com/lewiswan/WuWan.git
 cd WuWan
+
+# Install Python package
 pip install .
+
+# Verify installation
+python -c "import WuWan_pavement_forward; print('Installation successful!')"
+```
+
+#### macOS
+```bash
+# Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install dependencies
+brew install cmake boost eigen python@3.11
+
+# Verify installations
+cmake --version
+clang --version
+python3 --version
+
+# Check library paths (optional)
+brew list eigen
+brew list boost
+
+# Clone the repository
+git clone https://github.com/lewiswan/WuWan.git
+cd WuWan
+
+# Install Python package
+pip3 install .
+
+# Verify installation
+python3 -c "import WuWan_pavement_forward; print('Installation successful!')"
+```
+
+#### Windows (WSL2 Recommended)
+
+**Option 1: Using WSL2 (Recommended)**
+```bash
+# Install WSL2 with Ubuntu from PowerShell (as Administrator)
+wsl --install -d Ubuntu
+
+# After WSL2 is installed, open Ubuntu terminal and follow the Linux installation steps above
+```
+
+**Option 2: Native Windows with Visual Studio**
+```powershell
+# Install Visual Studio 2019 or later with C++ development tools
+# Download from: https://visualstudio.microsoft.com/
+
+# Install vcpkg package manager
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+.\bootstrap-vcpkg.bat
+
+# Install dependencies
+.\vcpkg install boost-math:x64-windows eigen3:x64-windows
+
+# Integrate vcpkg with Visual Studio
+.\vcpkg integrate install
+
+# Clone the repository
+git clone https://github.com/lewiswan/WuWan.git
+cd WuWan
+
+# Install Python package (from Developer Command Prompt for VS)
+pip install .
+
+# Verify installation
+python -c "import WuWan_pavement_forward; print('Installation successful!')"
+```
+
+---
+
+### Alternative: Using Conda (Cross-platform)
+```bash
+# Create a new conda environment
+conda create -n wuwan python=3.11 -y
+conda activate wuwan
+
+# Install build tools and dependencies
+conda install -c conda-forge cmake cxx-compiler boost-cpp eigen -y
+
+# Clone the repository
+git clone https://github.com/lewiswan/WuWan.git
+cd WuWan
+
+# Install Python package
+pip install .
+
+# Verify installation
+python -c "import WuWan_pavement_forward; print('Installation successful!')"
+```
+
+---
+
+### Troubleshooting
+
+**Issue: CMake cannot find Eigen3**
+```bash
+# Manually specify Eigen3 path
+export EIGEN3_INCLUDE_DIR=/usr/include/eigen3
+pip install .
+```
+
+**Issue: Boost version incompatible**
+```bash
+# Use conda to install latest Boost
+conda install -c conda-forge boost-cpp
+```
+
+**Issue: Build fails on macOS M1/M2**
+```bash
+# Install ARM native versions
+brew install boost eigen
+# Or use Rosetta 2 for x86_64
+arch -x86_64 brew install boost eigen
+```
+
+---
+
+### Dependency Version Requirements
+
+| Dependency | Minimum Version | Installed by |
+|:-----------|:----------------|:-------------|
+| CMake | 3.15 | System package manager |
+| Boost | 1.70 | System package manager |
+| Eigen | 3.3 | System package manager |
+| scikit-build-core | Latest | pip (automatic) |
+| pybind11 | Latest | pip (automatic) |
+| numpy | 1.26.4 | pip (locked version) |
+| pandas | 2.3.3 | pip (locked version) |
+
+---
+
+## 🔮 Roadmap
+
+- [x] **C++ Core Rewrite**: Transformed from Cython to C++ with Eigen/Boost.
+- [x] **Forward Calculation & Analytical Gradients**: Implementation of high-speed forward modeling and derivative calculation.
+- [x] **Deterministic Back-calculation**: Fast inverse analysis for moduli estimation.
+- [ ] **Bayesian Uncertainty Analysis**: Implementation of MCMC or variational inference for posterior distributions (In Progress).
+- [ ] **Global Sensitivity Analysis**: Sobol indices or similar methods to quantify parameter influence (In Progress).
+- [ ] **Batch Error Simulation**: Wrappers for large-scale Monte Carlo simulations with noise injection.
+
+---
