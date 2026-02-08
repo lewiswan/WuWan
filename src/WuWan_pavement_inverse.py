@@ -217,6 +217,5 @@ def Backcalculation(arr, arr2, forward_module=None):
     for i, (final, initial) in enumerate(zip(final_phys_x, arr[1, 2:7]), 1):
         print(f" Final **E{i}** = {final:.6f}")
 
-    print(f"**Maximum elastic modulus error:** {np.max(np.abs(arr[1, 2:7] - final_phys_x)):.9f}")
 
     return final_phys_x
