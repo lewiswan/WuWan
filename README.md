@@ -40,7 +40,7 @@ Benchmarks performed on a standard workstation (Single-threaded):
 | :--- | :--- | :--- | :--- |
 | **Forward Calculation** | 10,000 calls (10 points/call) | **~0.9 seconds** | Pure deflection calculation |
 | **Forward + Gradient** | 10,000 calls (10 points/call)| **~2.0 seconds** | Deflection + Jacobian w.r.t moduli |
-| **Inverse Analysis** | Single Basin | **~10 - 50 ms** | Dependent on convergence criteria |
+| **Inverse Analysis** | Single Basin | **~5 - 50 ms** | Dependent on convergence criteria |
 
 > **Note:** The solver is optimized to handle large-scale batch processing for sensitivity analysis and probabilistic inversion. The performance test platform is MacOs with M4 CPU.
 
@@ -48,9 +48,21 @@ Benchmarks performed on a standard workstation (Single-threaded):
 
 ## 📉 Validation: WuWan vs. ELLEA
 
-To ensure numerical reliability, **WuWan (v0.30)** was rigorously benchmarked against the established [**ELLEA**](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) **(v1.00)** solver. This extensive validation study covered **500,000 distinct structural combinations**, resulting in a total of **5,000,000 evaluation points**.
+To ensure numerical reliability, **WuWan (v0.30)** was rigorously benchmarked against the established [**ELLEA**](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) **(v1.00)** solver.
 
-### Statistical Agreement
+### 1. Dataset Generation
+
+The validation study covered **500,000 distinct structural combinations**, resulting in a total of **5,000,000 evaluation points**. The structural parameters were randomly generated within the following physical ranges to cover a wide spectrum of pavement conditions:
+
+| Layer | Thickness Range ($h$) [mm] | Modulus Range ($E$) [MPa] |
+| :---: | :--- | :--- |
+| **1** | $40 - 450$ | $1,000 - 25,000$ |
+| **2** | $150 - 300$ | $100 - 8,000$ |
+| **3** | $150 - 600$ | $80 - 600$ |
+| **4** | $0 - 500$ | $20 - 500$ |
+| **5** | $\infty$ (Half-space) | $15 - 150$ |
+
+### 2. Statistical Agreement
 
 The results demonstrate exceptional fidelity. As illustrated in **Figure (a)**, the calculated deflections align almost perfectly with the theoretical line of equality, achieving a coefficient of determination of **$R^2 = 0.999997$**.
 
@@ -62,7 +74,7 @@ The results demonstrate exceptional fidelity. As illustrated in **Figure (a)**, 
 | **0.5% – 1.0%** | **0.0051%** | 🟠 Orange points |
 | **> 1.0%** | **0.0000%** | *None* |
 
-### Edge Case Analysis
+### 3. Edge Case Analysis
 
 The minor deviations (orange points) observed in the 0.5%–1.0% range are isolated to **extreme stiffness contrasts**. Specifically, these occur only when a very soft subgrade ($E_5 \approx 15$ MPa) is paired with significantly stiffer upper layers.
 
@@ -175,7 +187,7 @@ The solver attempts to recover the moduli by minimizing the error between calcul
 The table below visualizes the accuracy of the inversion. Note that due to the added noise in thickness and load, the solver correctly finds the *effective* modulus that satisfies the physical equilibrium, which may deviate slightly from the theoretical "True" value.
 
 | Layer | True Modulus ($E_{true}$) | **Calculated Modulus ($E_{calc}$)** | Deviation |
-| :--- | :--- | :--- | :--- | :--- |
+| :--- | :--- | :--- | :--- |
 | **1 (Surface)** | **8000 MPa** | **10330.8 MPa** | +29.1% |
 | **2 (Base)** | **400 MPa** | **411.2 MPa** | +2.8% |
 | **3 (Subbase)** | **300 MPa** | **292.8 MPa** | -2.4% |
