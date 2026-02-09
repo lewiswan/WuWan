@@ -30,8 +30,6 @@ SimResults Calculation(Eigen::Ref<InputMat> input_arr, bool calc_grad) {
     params.index = index_search(params.z, params.evaluation(1));
 
     RunSimulationKernel(params, buffer, results, input_arr, calc_grad);
-
-
     return results;
 }
 

@@ -5,7 +5,6 @@
 
 namespace BesselZeros {
 
-// 编译时生成器模板
 template <int N>
 struct J0Table {
     static const std::array<double, N>& get() {
@@ -34,7 +33,6 @@ struct J1Table {
     }
 };
 
-// 固定大小的表（程序启动时初始化一次）
 inline const std::array<double, 120>& J0() {
     return J0Table<120>::get();
 }

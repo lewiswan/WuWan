@@ -18,7 +18,7 @@
 
 
 template <int N>
-inline void compute_gauss_fixed_n(double a, double b, Vec64& points, Vec64& weights) {
+inline void compute_gauss_fixed_n(double a, double b, Vec128& points, Vec128& weights) {
     static const auto gl = boost::math::quadrature::gauss<double, N>();
     
     double half_len = 0.5 * (b - a);
@@ -26,10 +26,8 @@ inline void compute_gauss_fixed_n(double a, double b, Vec64& points, Vec64& weig
     
     const auto& abs = gl.abscissa();
     const auto& wts = gl.weights();
-    
     int half_n = static_cast<int>(abs.size());
     int idx = 0;
-    
     if (N % 2 == 0) {
         for (int i = half_n - 1; i >= 0; --i) {
             points[idx]  = mid_pt - half_len * abs[i];
@@ -58,7 +56,7 @@ inline void compute_gauss_fixed_n(double a, double b, Vec64& points, Vec64& weig
     }
 }
 
-inline void gauss_legendre_point(int n, double a, double b, Vec64& points, Vec64& weights) {
+inline void gauss_legendre_point(int n, double a, double b, Vec128& points, Vec128& weights) {
     switch (n) {
         case 4:  compute_gauss_fixed_n<4> (a, b, points, weights); break;
         case 8:  compute_gauss_fixed_n<8> (a, b, points, weights); break;
@@ -76,10 +74,26 @@ inline void gauss_legendre_point(int n, double a, double b, Vec64& points, Vec64
         case 56: compute_gauss_fixed_n<56>(a, b, points, weights); break;
         case 60: compute_gauss_fixed_n<60>(a, b, points, weights); break;
         case 64: compute_gauss_fixed_n<64>(a, b, points, weights); break;
+        case 68: compute_gauss_fixed_n<68>(a, b, points, weights); break;
+        case 72: compute_gauss_fixed_n<72>(a, b, points, weights); break;
+        case 76: compute_gauss_fixed_n<76>(a, b, points, weights); break;
+        case 80: compute_gauss_fixed_n<80>(a, b, points, weights); break;
+        case 84: compute_gauss_fixed_n<84>(a, b, points, weights); break;
+        case 88: compute_gauss_fixed_n<88>(a, b, points, weights); break;
+        case 92: compute_gauss_fixed_n<92>(a, b, points, weights); break;
+        case 96: compute_gauss_fixed_n<96>(a, b, points, weights); break;
+        case 100: compute_gauss_fixed_n<100>(a, b, points, weights); break;
+        case 104: compute_gauss_fixed_n<104>(a, b, points, weights); break;
+        case 108: compute_gauss_fixed_n<108>(a, b, points, weights); break;
+        case 112: compute_gauss_fixed_n<112>(a, b, points, weights); break;
+        case 116: compute_gauss_fixed_n<116>(a, b, points, weights); break;
+        case 120: compute_gauss_fixed_n<120>(a, b, points, weights); break;
+        case 124: compute_gauss_fixed_n<124>(a, b, points, weights); break;
+        case 128: compute_gauss_fixed_n<128>(a, b, points, weights); break;
         
         default:
-            std::cerr << "Error: unsupported n = " << n << ", fallback to 64." << std::endl;
-            compute_gauss_fixed_n<64>(a, b, points, weights);
+            std::cerr << "Error: unsupported n = " << n << ", fallback to 128." << std::endl;
+            compute_gauss_fixed_n<128>(a, b, points, weights);
             break;
     }
 }

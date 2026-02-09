@@ -15,6 +15,7 @@ using Vec20 = Eigen::Matrix<double, 20, 1>;
 using Vec42 = Eigen::Matrix<double, 42, 1>;
 using Vec64 = Eigen::Matrix<double, 64, 1>;
 using Vec121 = Eigen::Matrix<double, 121, 1>;
+using Vec128 = Eigen::Matrix<double, 128, 1>;
 using BandMat18x8 = Eigen::Matrix<double, 18, 8, Eigen::RowMajor>;
 using Mat10x5 = Eigen::Matrix<double, 10, 5, Eigen::RowMajor>;
 using InputMat = Eigen::Matrix<double, 11, 8, Eigen::RowMajor>;
@@ -41,8 +42,8 @@ struct CalcBuffer {
     BandMat18x8 Coe_Matrix; 
     Vec121 zeros;
     Vec42 DCoefficientDE;
-    Vec64 points;
-    Vec64 weights;
+    Vec128 points;
+    Vec128 weights;
     Vec5 F1, F3;
     Vec18 b, Y;
     Vec20 Coe, Z;

@@ -38,11 +38,37 @@ Benchmarks performed on a standard workstation (Single-threaded):
 
 | Operation | Batch Size | Computation Time | Note |
 | :--- | :--- | :--- | :--- |
-| **Forward Calculation** | 10,000 calls (10 points/call) | **~1.5 seconds** | Pure deflection calculation |
-| **Forward + Gradient** | 10,000 calls | **~3.5 seconds** | Deflection + Jacobian w.r.t moduli |
+| **Forward Calculation** | 10,000 calls (10 points/call) | **~0.9 seconds** | Pure deflection calculation |
+| **Forward + Gradient** | 10,000 calls (10 points/call)| **~2.0 seconds** | Deflection + Jacobian w.r.t moduli |
 | **Inverse Analysis** | Single Basin | **~10 - 50 ms** | Dependent on convergence criteria |
 
 > **Note:** The solver is optimized to handle large-scale batch processing for sensitivity analysis and probabilistic inversion. The performance test platform is MacOs with M4 CPU.
+
+---
+
+## 📉 Validation: WuWan vs. ELLEA
+
+To ensure numerical reliability, **WuWan (v0.30)** was rigorously benchmarked against the established [**ELLEA**](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) **(v1.00)** solver. This extensive validation study covered **500,000 distinct structural combinations**, resulting in a total of **5,000,000 evaluation points**.
+
+### Statistical Agreement
+
+The results demonstrate exceptional fidelity. As illustrated in **Figure (a)**, the calculated deflections align almost perfectly with the theoretical line of equality, achieving a coefficient of determination of **$R^2 = 0.999997$**.
+
+**Figure (b)** details the relative error distribution. The absolute difference between the solvers is negligible for the vast majority of cases:
+
+| Error Range | Percentage of Data | Visual Representation |
+| :--- | :--- | :--- |
+| **< 0.5%** | **99.9949%** | 🔵 Blue points |
+| **0.5% – 1.0%** | **0.0051%** | 🟠 Orange points |
+| **> 1.0%** | **0.0000%** | *None* |
+
+### Edge Case Analysis
+
+The minor deviations (orange points) observed in the 0.5%–1.0% range are isolated to **extreme stiffness contrasts**. Specifically, these occur only when a very soft subgrade ($E_5 \approx 15$ MPa) is paired with significantly stiffer upper layers.
+
+In these rare scenarios, numerical discrepancies tend to increase closer to the load application point. However, even under these extreme conditions, the maximum error strictly remains **below 1%**. For all standard pavement structures, WuWan consistently maintains a precision deviation of **< 0.5%**.
+
+![Accuracy Validation](demo_figure/verification_50000.png)
 
 ---
 
@@ -129,13 +155,13 @@ To simulate real-world FWD (Falling Weight Deflectometer) conditions, we use a s
 
 | Parameter | Original Value | Added Noise (Simulated Error) | Modified Input (Solver Sees) |
 | :--- | :--- | :--- | :--- |
-| **Load** | 0.95 MPa | $+0.006$ MPa | **0.956 MPa** |
-| **Thickness L1** | 50.0 mm | $+1.92$ mm | **51.92 mm** |
-| **Thickness L2** | 200.0 mm | $-1.05$ mm | **198.95 mm** |
-| **Thickness L3** | 300.0 mm | $-1.16$ mm | **298.84 mm** |
-| **Thickness L4** | 600.0 mm | $+8.03$ mm | **608.03 mm** |
-| **Sensor (r=300)** | 300.0 mm | $+1.82$ mm | **301.82 mm** |
-| **Sensor (r=600)** | 600.0 mm | $+0.20$ mm | **600.20 mm** |
+| **Load** | 0.95 MPa | $-0.004$ MPa | **0.946 MPa** |
+| **Thickness L1** | 50.0 mm | $-4.70$ mm | **45.30 mm** |
+| **Thickness L2** | 200.0 mm | $-0.21$ mm | **199.79 mm** |
+| **Thickness L3** | 300.0 mm | $+3.88$ mm | **303.88 mm** |
+| **Thickness L4** | 600.0 mm | $+6.56$ mm | **606.56 mm** |
+| **Sensor (r=300)** | 300.0 mm | $+1.29$ mm | **301.29 mm** |
+| **Sensor (r=600)** | 600.0 mm | $-0.58$ mm | **599.42 mm** |
 | **...** | ... | ... | ... |
 
 *(Note: Noise was applied to all 9 sensor positions and deflection readings as shown in the error analysis log.)*
@@ -148,24 +174,24 @@ The solver attempts to recover the moduli by minimizing the error between calcul
 
 The table below visualizes the accuracy of the inversion. Note that due to the added noise in thickness and load, the solver correctly finds the *effective* modulus that satisfies the physical equilibrium, which may deviate slightly from the theoretical "True" value.
 
-| Layer | True Modulus ($E_{true}$) | Initial Guess | **Calculated Modulus ($E_{calc}$)** | Deviation |
+| Layer | True Modulus ($E_{true}$) | **Calculated Modulus ($E_{calc}$)** | Deviation |
 | :--- | :--- | :--- | :--- | :--- |
-| **1 (Surface)** | **8000 MPa** | 7542.5 MPa | **7327.8 MPa** | -8.4% |
-| **2 (Base)** | **400 MPa** | 373.9 MPa | **407.5 MPa** | +1.9% |
-| **3 (Subbase)** | **300 MPa** | 322.9 MPa | **287.1 MPa** | -4.3% |
-| **4 (Soil)** | **200 MPa** | 189.9 MPa | **207.9 MPa** | +4.0% |
-| **5 (Subgrade)** | **100 MPa** | 98.6 MPa | **100.1 MPa** | **+0.1%** |
+| **1 (Surface)** | **8000 MPa** | **10330.8 MPa** | +29.1% |
+| **2 (Base)** | **400 MPa** | **411.2 MPa** | +2.8% |
+| **3 (Subbase)** | **300 MPa** | **292.8 MPa** | -2.4% |
+| **4 (Soil)** | **200 MPa** | **195.9 MPa** | -2.1% |
+| **5 (Subgrade)** | **100 MPa** | **99.4 MPa** | **-0.6%** |
 
-> **Observation:** The subgrade modulus (Layer 5) is recovered with extremely high accuracy (**0.1% error**), which is critical for structural evaluation. The surface layer shows higher deviation, which is expected when thickness noise (approx. 4% error on L1 thickness) is introduced.
+> **Observation:** The subgrade modulus (Layer 5) is recovered with extremely high accuracy (**0.6% error**), which is critical for structural evaluation. The surface layer shows higher deviation, which is expected when thickness noise (approx. 9% error on L1 thickness) is introduced.
 
 #### Optimization Performance
 
 The **WuWan** C++ backend utilizes analytical gradients (Jacobian) to accelerate convergence.
 
-* **Total Run Time:** `0.010 seconds`
-* **Total C++ Calls:** `21`
-* **Gradient Calculations:** `6`
-* **Final Cost (Residual):** `8.69e-05`
+* **Total Run Time:** `0.006 seconds`
+* **Total C++ Calls:** `18`
+* **Gradient Calculations:** `7`
+* **Final Cost (Residual):** `5.01e-06`
 
 *(Note: Representation of cost reduction over 15 iterations)*
 
