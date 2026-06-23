@@ -5,120 +5,41 @@
 [![C++](https://img.shields.io/badge/C%2B%2B-17-red)](https://isocpp.org/)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
 
-## 📋 Overview
+## Overview
 
-**WuWan** is a high-performance computational library for forward and inverse analysis of layered pavement systems. It solves deflections in **5-layer elastic half-space** (Also for layers less than 5) structures with exceptional speed and accuracy, making it ideal for:
+**WuWan** is a high-performance C++/Python library for forward and inverse analysis of layered (up to **5-layer**) elastic half-space pavement systems. Benchmarked against the Technical University of Denmark's [**ELLEA**](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) solver to a coefficient of determination of **R² = 0.999999** across **5,000,000** evaluation points, it recovers layer moduli from a complete deflection basin in **5–50 ms**, and provides a robust, uncertainty-aware **D-optimal** procedure for Falling Weight Deflectometer (FWD) sensor placement.
 
-- 🛣️ **Pavement Engineering**: FWD (Falling Weight Deflectometer) data back-calculation
-- 🔬 **Research**: Large-scale parametric studies and sensitivity analysis  
-- 🏗️ **Structural Assessment**: Real-time moduli estimation for quality control
+It is built for:
 
-Built with a modern **C++17 backend** (relying on Boost and Eigen) and wrapped for **Python**, it leverages analytical gradients and custom linear algebra optimizations to achieve millisecond-level inversions.
+- **Pavement Engineering** — FWD data back-calculation and moduli estimation.
+- **Research** — large-scale parametric studies, sensitivity analysis, and probabilistic inversion.
+- **Structural Assessment** — real-time moduli estimation for quality control.
 
----
-
-## 🚀 Key Features
-
-* **High-Performance Core**: Originally a Cython project, now fully rewritten in C++ for maximum efficiency.
-* **Analytical Gradients**: Implements analytical derivatives for Jacobian calculations, significantly outperforming finite difference methods in stability and speed.
-* **Advanced Back-Calculation**:
-    * Utilizes `Eigen` combined with high-speed C++ gradient providers.
-    * Solves inverse problems in **tens of milliseconds**.
-* **Robust Error Modeling**: Supports noise injection for thickness, deflection, load, and sensor positioning to simulate real-world measurement uncertainties.
-* **Sensor Location Optimization**: Robust, uncertainty-aware Differential Evolution search for the FWD sensor layout that maximizes the information content of the deflection basin.
+The solver couples a modern **C++17 backend** (Boost and Eigen) with a thin **Python** wrapper, using analytical gradients and structure-aware linear algebra to reach millisecond-level inversions.
 
 ---
 
-## 🛠 Installation & Dependencies
+## At a Glance
 
-### System Requirements
+| Capability | Result |
+| :--- | :--- |
+| **Forward accuracy** vs. ELLEA (5,000,000 points) | R² = 0.999999; max error **< 1%**, typically **< 0.5%** |
+| **Back-calculation fidelity** (500,000 noise-free cases) | R² = 1.0000 per layer; **99.99%** recovered to floating-point precision |
+| **Inverse analysis** | Single deflection basin in **~5–50 ms** |
+| **Forward throughput** | 10,000 basins (10 points each) in **~0.9 s**, single-threaded |
+| **Sensor optimization** | **1.86× D-efficiency**; 95% confidence-ellipsoid volume reduced to **21.2%** |
 
-- **Operating Systems**: Linux, macOS, Windows
-- **Python**: 3.8 or higher
-- **C++ Compiler**: Supporting C++17 (GCC 7+, Clang 5+, MSVC 2017+)
-
-### Prerequisites
-* **C++ Compiler** supporting C++17
-* **Boost Math Library**
-* **Eigen3 Linear Algebra Library**
-* **Python 3.x**
-
-### Building from Source
-
-#### Clone the Repository
-```bash
-git clone https://github.com/lewiswan/WuWan.git
-cd WuWan
-```
-
-#### Option A: Standard Installation (Recommended for Users)
-
-This method automatically sets up a build environment, downloads necessary C++ libraries (Eigen & Boost), and compiles the project.
-```bash
-pip install .
-```
-
-**Note:** The first installation may take a few minutes as it downloads the Boost C++ headers.
-
-#### Option B: Fast Re-installation (Recommended for Developers)
-
-If you are modifying the C++ code or reinstalling frequently, use this method. It utilizes build isolation disabled to persist the CMake cache. This prevents re-downloading Boost/Eigen on every build, reducing compile time to seconds.
-
-1. Install build tools (one-time setup):
-```bash
-pip install cmake ninja pybind11
-```
-
-2. Fast install command:
-```bash
-pip install . --no-build-isolation --no-deps --force-reinstall
-```
+WuWan moves beyond a conventional forward/inverse solver by treating measurement uncertainty as a first-class citizen: it quantifies how noise propagates into recovered moduli (Monte Carlo) and **optimizes the sensor layout itself** to maximize the information content of the deflection basin.
 
 ---
 
-## 🧠 Methodology
+## Validation: WuWan vs. ELLEA
 
-The core algorithm solves the Layered Elastic Theory (LET) equations using advanced numerical techniques:
-
-1.  **Hankel Transform**: The integral transform is converted into algebraic equations using high-precision **Gauss-Legendre quadrature**.
-2.  **System Solving**: Instead of using generic solvers, WuWan employs a **custom implementation of LU decomposition**. This is specifically optimized for the sparse, banded structure of the 5-layer system matrices, reducing memory overhead and computation time.
-3.  **Gradient Computation**: The Jacobian matrix is computed via **analytical derivation** of the stiffness matrix. This allows for precise sensitivity analysis without the computational overhead or truncation errors associated with numerical differentiation.
-
-### Why It's Fast
-
-| Technique | Benefit |
-|-----------|---------|
-| Gauss-Legendre Quadrature | High-precision numerical integration with optimal node placement |
-| Zero-Segmented Integration | Divides integration domain at Bessel function zeros for enhanced accuracy |
-| Asymptotic Approximation (Decoupling from linear equation system) | Reduces computational complexity for large integration points |
-| C++17 + Eigen | SIMD-vectorized linear algebra |
-| Analytical gradients | 3-5× faster than finite differences |
-| Custom sparse solver | 50% memory reduction vs. generic LU |
-| Zero-copy interface | Minimal Python/C++ data marshalling overhead |
-
----
-
-## 📊 Performance Benchmarks
-
-**Test Platform**: MacBook Pro M4, Single-threaded
-
-| Operation | Batch Size | Computation Time | Note |
-| :--- | :--- | :--- | :--- |
-| **Forward Calculation** | 10,000 calls (10 points/call) | **~0.9 seconds** | Pure deflection calculation |
-| **Forward + Gradient** | 10,000 calls (10 points/call)| **~2.0 seconds** | Deflection + Jacobian w.r.t moduli |
-| **Inverse Analysis** | Single Basin | **~5 - 50 ms** | Dependent on convergence criteria |
-
-> **Note:** The solver is optimized to handle large-scale batch processing for sensitivity analysis and probabilistic inversion.
-
----
-
-## 📉 Validation: WuWan vs. ELLEA
-
-To ensure numerical reliability, **WuWan (v0.30)** was rigorously benchmarked against the established [**ELLEA**](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) **(v1.00)** solver.
+To establish numerical reliability, **WuWan (v0.30)** was benchmarked against the established [**ELLEA**](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) **(v1.00)** solver.
 
 ### 1. Dataset Generation
 
-The validation study covered **500,000 distinct structural combinations**, resulting in a total of **5,000,000 evaluation points**. The structural parameters were randomly generated within the following physical ranges to cover a wide spectrum of pavement conditions:
+The validation study covered **500,000 distinct structural combinations**, yielding a total of **5,000,000 evaluation points**. Structural parameters were sampled within the following physical ranges to span a wide spectrum of pavement conditions:
 
 | Layer | Thickness Range ($h$) [mm] | Modulus Range ($E$) [MPa] | Poisson's Ratio |
 | :---: | :--- | :--- | :--- |
@@ -130,23 +51,21 @@ The validation study covered **500,000 distinct structural combinations**, resul
 
 ### 2. Statistical Agreement
 
-The results demonstrate exceptional fidelity. As illustrated in **Figure (a)**, the calculated deflections align almost perfectly with the theoretical line of equality, achieving a coefficient of determination of **$R^2 = 0.999997$**.
+The results demonstrate exceptional fidelity. As shown in **Figure (a)**, the calculated deflections align almost perfectly with the line of equality, achieving a coefficient of determination of **$R^2 = 0.999999$**.
 
 **Figure (b)** details the relative error distribution. The absolute difference between the solvers is negligible for the vast majority of cases:
 
 | Difference Range | Count | Percentage of Data | Visual Representation |
 | :--- | :--- | :--- | :--- |
-| **(0%, 0.25%]** | 4,990,713 | **99.8143%** | 🔵 Blue points |
-| **(0.25%, 0.5%]** | 9,118 | **0.1824%** | 🔵 Blue points |
-| **(0.5%, 0.75%]** | 168 | **0.0034%** | 🟠 Orange points |
-| **(0.75%, 1.0%]** | 1 | **0.0000%** | 🟠 Orange points |
-| **(1.0%, ∞)** | 0 | **0.0000%** | *None* |
+| **(0%, 0.25%]** | 4,990,713 | **99.8143%** | Blue points |
+| **(0.25%, 0.5%]** | 9,118 | **0.1824%** | Blue points |
+| **(0.5%, 0.75%]** | 168 | **0.0034%** | Orange points |
+| **(0.75%, 1.0%]** | 1 | **0.0000%** | Orange points |
+| **(1.0%, ∞)** | 0 | **0.0000%** | None |
 
 ### 3. Case Analysis
 
-The minor deviations (orange points) observed in the 0.5%–1.0% range are isolated to **extreme stiffness contrasts**. Specifically, these occur only when a very soft subgrade ($E_5 \approx 15$ MPa) is paired with significantly stiffer upper layers.
-
-In these rare scenarios, numerical discrepancies tend to increase closer to the load application point. However, even under these extreme conditions, the maximum error strictly remains **below 1%**. For all standard pavement structures, WuWan consistently maintains a precision deviation of **< 0.5%**.
+The minor deviations (orange points) in the 0.5%–1.0% range are isolated to **extreme stiffness contrasts** — specifically, a very soft subgrade ($E_5 \approx 15$ MPa) paired with significantly stiffer upper layers. In these rare scenarios, numerical discrepancies tend to grow closer to the load application point. Even under these extreme conditions, the maximum error strictly remains **below 1%**; for all standard pavement structures, WuWan maintains a precision deviation of **< 0.5%**.
 
 ![Accuracy Validation](demo_figure/verification.png)
 
@@ -175,15 +94,51 @@ To verify that the inverse engine is mathematically consistent with the forward 
 | **-12 to -9** | 0.00% | 23 |
 | **-9 to -6** | 0.00% | 18 |
 
-In other words, **99.99%** of the 500,000 structures are recovered to within floating-point precision. The handful of outlier cases (41 total) with larger residuals are confined to Layers 3 and 4, consistent with the known equifinality of layers that have weak influence on the measured surface deflection signal — the same effect already observed in the noisy back-calculation example below.
+In other words, **99.99%** of the 500,000 structures are recovered to within floating-point precision. The handful of outlier cases (41 total) with larger residuals are confined to Layers 3 and 4, consistent with the known equifinality of layers that have weak influence on the measured surface deflection signal — the same effect observed in the noisy back-calculation example below.
 
 ![Backcalculation Validation](demo_figure/backcalculation_halfmillion.png)
 
 ---
 
-## ⚡ Quick Start: Forward Calculation
+## Performance Benchmarks
 
-This example demonstrates how to perform a forward calculation for a 5-layer pavement system using **WuWanGUI**, the desktop front-end built on top of the same high-performance **WuWan** C++ backend.
+**Test Platform**: MacBook Pro M4, single-threaded.
+
+| Operation | Batch Size | Computation Time | Note |
+| :--- | :--- | :--- | :--- |
+| **Forward Calculation** | 10,000 calls (10 points/call) | **~0.9 seconds** | Pure deflection calculation |
+| **Forward + Gradient** | 10,000 calls (10 points/call) | **~2.0 seconds** | Deflection + Jacobian w.r.t. moduli |
+| **Inverse Analysis** | Single Basin | **~5 – 50 ms** | Dependent on convergence criteria |
+
+> **Note:** The solver is optimized for large-scale batch processing in support of sensitivity analysis and probabilistic inversion.
+
+---
+
+## Methodology
+
+The core algorithm solves the Layered Elastic Theory (LET) equations using the following numerical techniques:
+
+1. **Hankel Transform** — the integral transform is reduced to algebraic equations using high-precision **Gauss-Legendre quadrature**.
+2. **System Solving** — instead of a generic solver, WuWan employs a **custom LU decomposition** tailored to the sparse, banded structure of the 5-layer system matrices, reducing memory overhead and computation time.
+3. **Gradient Computation** — the Jacobian matrix is computed by **analytical derivation** of the stiffness matrix, enabling precise sensitivity analysis without the computational overhead or truncation error of numerical differentiation.
+
+### Why It's Fast
+
+| Technique | Benefit |
+|-----------|---------|
+| Gauss-Legendre Quadrature | High-precision numerical integration with optimal node placement |
+| Zero-Segmented Integration | Integration domain split at Bessel-function zeros for improved accuracy |
+| Asymptotic Approximation | Decouples large-kernel terms from the linear system, lowering complexity at high integration-point counts |
+| C++17 + Eigen | SIMD-vectorized linear algebra |
+| Analytical gradients | Exact Jacobians without the additional forward evaluations or truncation error of finite differences |
+| Structure-aware LU solver | Banded factorization matched to the layer-matrix sparsity, reducing memory traffic vs. a generic dense solver |
+| Zero-copy interface | Minimal Python/C++ data-marshalling overhead |
+
+---
+
+## Quick Start: Forward Calculation
+
+This example performs a forward calculation for a 5-layer pavement system using **WuWanGUI**, the desktop front-end built on top of the same **WuWan** C++ backend.
 
 ### 1. Launch WuWanGUI and Select a Module
 
@@ -193,13 +148,13 @@ Launching `WuWanGUI.py` opens the main menu, from which the user picks one of th
 
 ### 2. Define the Layered System and Compute
 
-On the **Forward Calculation** page, the user fills in the editable cells (White) of the layered system table — modulus, Poisson's ratio, and thickness for each of the 5 layers, plus the applied stress, load radius, and sensor offsets ($r$) for each evaluation point — then clicks **Compute!**.
+On the **Forward Calculation** page, the user fills in the editable (white) cells of the layered system table — modulus, Poisson's ratio, and thickness for each of the 5 layers, plus the applied stress, load radius, and sensor offsets ($r$) for each evaluation point — then clicks **Compute!**.
 
 ![Forward Calculation Input](demo_figure/gui_forward_input.png)
 
 ### 3. Output & Visualization
 
-The deflection results (pink cells) are filled in instantly. Clicking **Show Profile Plot** reveals the deflection basin inline, alongside the input table:
+The deflection results (pink cells) are filled in instantly. Clicking **Show Profile Plot** renders the deflection basin inline, alongside the input table:
 
 ![Forward Calculation Result](demo_figure/gui_forward_result.png)
 
@@ -216,13 +171,15 @@ The deflection results (pink cells) are filled in instantly. Clicking **Show Pro
 | 9 | 1500 | 115.7 |
 | 10 | 1800 | 99.8 |
 
-## ⚡ Quick Start: Inverse Calculation (without error, perfect case)
+---
 
-This example demonstrates how to perform back-calculation (inversion) using the **Back Calculation** module of **WuWanGUI**, recovering layer moduli from a noise-free deflection basin.
+## Quick Start: Inverse Calculation (Noise-Free Case)
+
+This example performs back-calculation (inversion) using the **Back Calculation** module of **WuWanGUI**, recovering layer moduli from a noise-free deflection basin.
 
 ### 1. Define the Deflection Bowl & Loading System
 
-On the **Back Calculation** page, the user enters the load (Stress = 0.95 MPa, Radius = 150 mm) and the measured deflection at each of the 10 evaluation points. Here the deflection basin is generated directly from a known set of **"True" moduli** ($E_{true} = [8000, 400, 300, 200, 100]$ MPa), with no measurement noise injected.
+On the **Back Calculation** page, the user enters the load (Stress = 0.95 MPa, Radius = 150 mm) and the measured deflection at each of the 10 evaluation points. Here the deflection basin is generated directly from a known set of **"true" moduli** ($E_{true} = [8000, 400, 300, 200, 100]$ MPa), with no measurement noise injected.
 
 ![Deflection Bowl & Loading System](demo_figure/gui_backcalc_deflection.png)
 
@@ -252,7 +209,7 @@ Clicking **Run Single Calculation** (no uncertainty / Monte Carlo sampling) reco
 
 ---
 
-## 🎲 Quick Start: Monte Carlo Back-Calculation (Uncertainty Analysis)
+## Quick Start: Monte Carlo Back-Calculation (Uncertainty Analysis)
 
 Building on the same **Back Calculation** module, this example quantifies how measurement uncertainty propagates into the recovered moduli. Instead of a single noise-free deflection basin, **WuWanGUI** repeatedly resamples randomized (triangular-distributed) noise on the layered system, the load, and the deflections, and re-runs the back-calculation for each trial.
 
@@ -287,11 +244,11 @@ Clicking **Run Monte Carlo** repeats the back-calculation **N = 1200** times, ea
 | **L4** | 500 | 219.14 | **200.13** | 88.70 | 450.71 | 1.112 | **45.02** |
 | **L5** | semi-inf | **100.07** | 100.08 | 95.63 | 105.23 | 0.181 | **3.11** |
 
-> **Observation:** The subgrade (Layer 5) is recovered with **excellent** core spread (RR = 3.11%) despite the injected noise, while Layer 3 — the layer with the least influence on the surface deflection basin — shows a **poor** core spread (RR = 75.97%) and the largest tail risk (UR = 4.39). This mirrors the equifinality already seen in the half-million-case validation above: layers with weak sensitivity to surface deflections are inherently harder to pin down once measurement noise is introduced, even though the underlying solver itself is exact.
+> **Observation:** The subgrade (Layer 5) is recovered with **excellent** core spread (RR = 3.11%) despite the injected noise, while Layer 3 — the layer with the least influence on the surface deflection basin — shows a **poor** core spread (RR = 75.97%) and the largest tail risk (UR = 4.39). This mirrors the equifinality seen in the half-million-case validation above: layers with weak sensitivity to surface deflections are inherently harder to pin down once measurement noise is introduced, even though the underlying solver itself is exact.
 
 ---
 
-## 🎯 Quick Start: Sensor Location Optimization
+## Quick Start: Sensor Location Optimization
 
 This example demonstrates the **Sensor Location Optimization** module, which searches for the FWD sensor radii ($r$) that maximize the information content of the deflection basin for back-calculation, under realistic uncertainty in the layered system, load, and measurement noise.
 
@@ -310,7 +267,7 @@ The user sets how many sensors are **fixed** (kept at their original positions) 
 
 ### 3. Layered System & Deflection/Loading Noise
 
-Just like the Monte Carlo back-calculation, the modulus search range, thickness noise, load noise, and per-sensor deflection noise are defined as triangular-distributed priors. These define the uncertainty that the optimizer is made **robust** against.
+As in the Monte Carlo back-calculation, the modulus search range, thickness noise, load noise, and per-sensor deflection noise are defined as triangular-distributed priors. These define the uncertainty that the optimizer is made **robust** against.
 
 ![Layered System Noise & Setting](demo_figure/gui_slo_layer_noise.png)
 ![Deflections & Loading Noise Setting](demo_figure/gui_slo_deflection_noise.png)
@@ -346,7 +303,7 @@ This corresponds to a **D-efficiency of 1.86×** relative to the initial layout,
 | P9 | Free | 1500.0 | 2899.9 | +1399.9 |
 | P10 | Free | 1800.0 | 3000.0 | +1200.0 |
 
-> **Observation:** The optimizer pushes the free sensors outward, toward the edge of the allowed search range, since the deepest/least-sensitive layers (Layer 3 and 4 — see the validation and Monte Carlo sections above) are best identified by sensors farther from the load, where their relative contribution to the deflection basin is largest.
+> **Observation:** The optimizer pushes the free sensors outward, toward the edge of the allowed search range, because the deepest and least-sensitive layers (Layers 3 and 4 — see the validation and Monte Carlo sections above) are best identified by sensors farther from the load, where their relative contribution to the deflection basin is largest.
 
 ### 5. Preview: Convergence, Modulus & Layout Comparison
 
@@ -366,54 +323,107 @@ WuWanGUI's **Preview** tab provides three additional diagnostic plots once the o
 
 ---
 
-## 📖 Documentation
+## Key Features
+
+* **High-Performance Core** — originally a Cython project, now fully rewritten in C++ for maximum efficiency.
+* **Analytical Gradients** — analytical derivatives for Jacobian calculations, outperforming finite-difference methods in stability and speed.
+* **Advanced Back-Calculation** — `Eigen` combined with high-speed C++ gradient providers, solving inverse problems in tens of milliseconds.
+* **Robust Error Modeling** — noise injection for thickness, deflection, load, and sensor positioning to simulate real-world measurement uncertainty.
+* **Sensor Location Optimization** — robust, uncertainty-aware Differential Evolution search for the FWD sensor layout that maximizes the information content of the deflection basin.
+
+---
+
+## Installation & Dependencies
+
+### System Requirements
+
+- **Operating Systems**: Linux, macOS, Windows
+- **Python**: 3.8 or higher
+- **C++ Compiler**: supporting C++17 (GCC 7+, Clang 5+, MSVC 2017+)
+
+### Prerequisites
+* **C++ Compiler** supporting C++17
+* **Boost Math Library**
+* **Eigen3 Linear Algebra Library**
+* **Python 3.x**
+
+### Building from Source
+
+#### Clone the Repository
+```bash
+git clone https://github.com/lewiswan/WuWan.git
+cd WuWan
+```
+
+#### Option A: Standard Installation (Recommended for Users)
+
+This method automatically sets up a build environment, downloads the necessary C++ libraries (Eigen & Boost), and compiles the project.
+```bash
+pip install .
+```
+
+**Note:** The first installation may take a few minutes as it downloads the Boost C++ headers.
+
+#### Option B: Fast Re-installation (Recommended for Developers)
+
+If you are modifying the C++ code or reinstalling frequently, use this method. It disables build isolation to persist the CMake cache, preventing a re-download of Boost/Eigen on every build and reducing compile time to seconds.
+
+1. Install build tools (one-time setup):
+```bash
+pip install cmake ninja pybind11
+```
+
+2. Fast install command:
+```bash
+pip install . --no-build-isolation --no-deps --force-reinstall
+```
+
+---
+
+## Documentation
 
 For comprehensive guidance on using WuWan:
 
-- **API Reference**: Detailed documentation of all classes and methods
-- **Tutorials**: Step-by-step examples in the `examples/` directory
-- **Theory**: Mathematical derivations and implementation details in `docs/theory.pdf`
-- **FAQ**: Common questions and troubleshooting tips
+- **API Reference**: detailed documentation of all classes and methods.
+- **Tutorials**: step-by-step examples in the `examples/` directory.
+- **Theory**: mathematical derivations and implementation details in `docs/theory.pdf`.
+- **FAQ**: common questions and troubleshooting tips.
 
 ---
 
-## 🔮 Roadmap
+## Roadmap
 
-- [x] **C++ Core Rewrite**: Transformed from Cython to C++ with Eigen/Boost.
-- [x] **Forward Calculation & Analytical Gradients**: Implementation of high-speed forward modeling and derivative calculation.
-- [x] **Deterministic Back-calculation**: Fast inverse analysis for moduli estimation.
-- [x] **Monte Carlo Uncertainty Analysis**: Triangular-distributed noise injection on thickness, load, sensor position, and deflection, with UR/RR risk-spread reporting per layer.
-- [x] **Sensor Location Optimization**: Robust D-optimal sensor placement via Differential Evolution over a Sample Average Approximation of the Fisher Information Matrix. *This is a **pioneer / preliminary release** of the module — the search heuristics and robustness criteria are still being refined in future versions.*
+- [x] **C++ Core Rewrite** — transformed from Cython to C++ with Eigen/Boost.
+- [x] **Forward Calculation & Analytical Gradients** — high-speed forward modeling and derivative calculation.
+- [x] **Deterministic Back-calculation** — fast inverse analysis for moduli estimation.
+- [x] **Monte Carlo Uncertainty Analysis** — triangular-distributed noise injection on thickness, load, sensor position, and deflection, with UR/RR risk-spread reporting per layer.
+- [x] **Sensor Location Optimization** — robust D-optimal sensor placement via Differential Evolution over a Sample Average Approximation of the Fisher Information Matrix. *This is a **preliminary release** of the module — the search heuristics and robustness criteria are still being refined.*
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **Apache License 2.0** — see the [LICENSE](LICENSE) file for details.
 
 You are free to use, modify, and distribute this software for both commercial and non-commercial purposes, subject to the terms of the license.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 WuWan builds upon decades of research in layered elastic theory and pavement mechanics:
 
-- **Libraries**: Built with [Eigen](https://eigen.tuxfamily.org), [Boost](https://www.boost.org), and [pybind11](https://pybind11.readthedocs.io)
-- **Validation**: Benchmarked against [ELLEA](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) by Technical University of Denmark
-- **Theory**: Inspired by foundational work from:
-  - Levenberg, E. (2020) - Pavement Mechanics: Lecture Notes
-  - Huang, Y.H. (2004) - Pavement Analysis and Design
-  - Ullidtz, P. (1998) - Modelling Flexible Pavement Response and Performance
+- **Libraries**: built with [Eigen](https://eigen.tuxfamily.org), [Boost](https://www.boost.org), and [pybind11](https://pybind11.readthedocs.io).
+- **Validation**: benchmarked against [ELLEA](https://findit.dtu.dk/en/catalog/689b3af6d060d500e9ed1ce2) by the Technical University of Denmark.
+- **Theory**: inspired by foundational work from:
+  - Levenberg, E. (2020) — *Pavement Mechanics: Lecture Notes*
+  - Huang, Y.H. (2004) — *Pavement Analysis and Design*
+  - Ullidtz, P. (1998) — *Modelling Flexible Pavement Response and Performance*
 
 Special thanks to all contributors and the pavement engineering research community.
 
 ---
 
-## 🌟 Star History
+## Star History
 
-If you find WuWan useful, please consider giving it a star on GitHub! It helps others discover the project and motivates continued development.
-
----
-
-**Made with ❤️ for pavement engineers and researchers worldwide**
+If you find WuWan useful, please consider giving it a star on GitHub — it helps others discover the project and motivates continued development.
