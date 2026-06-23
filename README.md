@@ -7,7 +7,7 @@
 
 ## 📋 Overview
 
-**WuWan** is a high-performance computational library for forward and inverse analysis of layered pavement systems. It solves deflections in **5-layer elastic half-space** structures with exceptional speed and accuracy, making it ideal for:
+**WuWan** is a high-performance computational library for forward and inverse analysis of layered pavement systems. It solves deflections in **5-layer elastic half-space** (Also for layers less than 5) structures with exceptional speed and accuracy, making it ideal for:
 
 - 🛣️ **Pavement Engineering**: FWD (Falling Weight Deflectometer) data back-calculation
 - 🔬 **Research**: Large-scale parametric studies and sensitivity analysis  
@@ -22,7 +22,7 @@ Built with a modern **C++17 backend** (relying on Boost and Eigen) and wrapped f
 * **High-Performance Core**: Originally a Cython project, now fully rewritten in C++ for maximum efficiency.
 * **Analytical Gradients**: Implements analytical derivatives for Jacobian calculations, significantly outperforming finite difference methods in stability and speed.
 * **Advanced Back-Calculation**:
-    * Utilizes `scipy.optimize` combined with high-speed C++ gradient providers.
+    * Utilizes `Eigen` combined with high-speed C++ gradient providers.
     * Solves inverse problems in **tens of milliseconds**.
 * **Robust Error Modeling**: Supports noise injection for thickness, deflection, load, and sensor positioning to simulate real-world measurement uncertainties.
 * **Sensor Location Optimization**: Robust, uncertainty-aware Differential Evolution search for the FWD sensor layout that maximizes the information content of the deflection basin.
@@ -90,7 +90,7 @@ The core algorithm solves the Layered Elastic Theory (LET) equations using advan
 |-----------|---------|
 | Gauss-Legendre Quadrature | High-precision numerical integration with optimal node placement |
 | Zero-Segmented Integration | Divides integration domain at Bessel function zeros for enhanced accuracy |
-| Asymptotic Approximation | Reduces computational complexity for large integration points |
+| Asymptotic Approximation (Decoupling from linear equation system) | Reduces computational complexity for large integration points |
 | C++17 + Eigen | SIMD-vectorized linear algebra |
 | Analytical gradients | 3-5× faster than finite differences |
 | Custom sparse solver | 50% memory reduction vs. generic LU |
@@ -142,7 +142,7 @@ The results demonstrate exceptional fidelity. As illustrated in **Figure (a)**, 
 | **(0.75%, 1.0%]** | 1 | **0.0000%** | 🟠 Orange points |
 | **(1.0%, ∞)** | 0 | **0.0000%** | *None* |
 
-### 3. Edge Case Analysis
+### 3. Case Analysis
 
 The minor deviations (orange points) observed in the 0.5%–1.0% range are isolated to **extreme stiffness contrasts**. Specifically, these occur only when a very soft subgrade ($E_5 \approx 15$ MPa) is paired with significantly stiffer upper layers.
 
@@ -187,13 +187,13 @@ This example demonstrates how to perform a forward calculation for a 5-layer pav
 
 ### 1. Launch WuWanGUI and Select a Module
 
-Launching `WuWan.py` opens the main menu, from which the user picks one of three analysis modules: **Forward Calculation**, **Back Calculation**, or **Sensor Location Optimization**.
+Launching `WuWanGUI.py` opens the main menu, from which the user picks one of three analysis modules: **Forward Calculation**, **Back Calculation**, or **Sensor Location Optimization**.
 
 ![WuWanGUI Main Menu](demo_figure/gui_main_menu.png)
 
 ### 2. Define the Layered System and Compute
 
-On the **Forward Calculation** page, the user fills in the editable cells (blue) of the layered system table — modulus, Poisson's ratio, and thickness for each of the 5 layers, plus the applied stress, load radius, and sensor offsets ($r$) for each evaluation point — then clicks **Compute!**.
+On the **Forward Calculation** page, the user fills in the editable cells (White) of the layered system table — modulus, Poisson's ratio, and thickness for each of the 5 layers, plus the applied stress, load radius, and sensor offsets ($r$) for each evaluation point — then clicks **Compute!**.
 
 ![Forward Calculation Input](demo_figure/gui_forward_input.png)
 
@@ -279,13 +279,13 @@ Clicking **Run Monte Carlo** repeats the back-calculation **N = 1200** times, ea
 [UR] Tail Risk: **< 0.3** Excellent | 0.3–0.8 Acceptable | **> 0.8** Poor.
 [RR] Core Spread: **< 20%** Excellent | 20–50% Acceptable | **> 50%** Poor.
 
-| Layer | Thickness [mm] | Mean [MPa] | Median [MPa] | CI (2.5%) | CI (97.5%) | UR | RR (%) |
+| Layer | Thickness [mm] | **Mean [MPa]** | Median [MPa] | CI (2.5%) | CI (97.5%) | UR | RR (%) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **L1** | 150 | 7991.06 | 7944.96 | 6780.16 | 9366.88 | -0.107 | **11.63** |
-| **L2** | 240 | 408.60 | 399.58 | 191.49 | 668.78 | -0.215 | **44.38** |
-| **L3** | 300 | 434.42 | 299.06 | 126.29 | 1783.63 | 4.389 | **75.97** |
-| **L4** | 500 | 219.14 | 200.13 | 88.70 | 450.71 | 1.112 | **45.02** |
-| **L5** | semi-inf | 100.07 | 100.08 | 95.63 | 105.23 | 0.181 | **3.11** |
+| **L1** | 150 | 7991.06 | **7944.96** | 6780.16 | 9366.88 | -0.107 | **11.63** |
+| **L2** | 240 | 408.60 | **399.58** | 191.49 | 668.78 | -0.215 | **44.38** |
+| **L3** | 300 | 434.42 | **299.06** | 126.29 | 1783.63 | 4.389 | **75.97** |
+| **L4** | 500 | 219.14 | **200.13** | 88.70 | 450.71 | 1.112 | **45.02** |
+| **L5** | semi-inf | **100.07** | 100.08 | 95.63 | 105.23 | 0.181 | **3.11** |
 
 > **Observation:** The subgrade (Layer 5) is recovered with **excellent** core spread (RR = 3.11%) despite the injected noise, while Layer 3 — the layer with the least influence on the surface deflection basin — shows a **poor** core spread (RR = 75.97%) and the largest tail risk (UR = 4.39). This mirrors the equifinality already seen in the half-million-case validation above: layers with weak sensitivity to surface deflections are inherently harder to pin down once measurement noise is introduced, even though the underlying solver itself is exact.
 
