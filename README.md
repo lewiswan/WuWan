@@ -25,6 +25,7 @@ Built with a modern **C++17 backend** (relying on Boost and Eigen) and wrapped f
     * Utilizes `scipy.optimize` combined with high-speed C++ gradient providers.
     * Solves inverse problems in **tens of milliseconds**.
 * **Robust Error Modeling**: Supports noise injection for thickness, deflection, load, and sensor positioning to simulate real-world measurement uncertainties.
+* **Sensor Location Optimization**: Robust, uncertainty-aware Differential Evolution search for the FWD sensor layout that maximizes the information content of the deflection basin.
 
 ---
 
@@ -133,11 +134,13 @@ The results demonstrate exceptional fidelity. As illustrated in **Figure (a)**, 
 
 **Figure (b)** details the relative error distribution. The absolute difference between the solvers is negligible for the vast majority of cases:
 
-| Error Range | Percentage of Data | Visual Representation |
-| :--- | :--- | :--- |
-| **< 0.5%** | **99.9949%** | 🔵 Blue points |
-| **0.5% – 1.0%** | **0.0051%** | 🟠 Orange points |
-| **> 1.0%** | **0.0000%** | *None* |
+| Difference Range | Count | Percentage of Data | Visual Representation |
+| :--- | :--- | :--- | :--- |
+| **(0%, 0.25%]** | 4,990,713 | **99.8143%** | 🔵 Blue points |
+| **(0.25%, 0.5%]** | 9,118 | **0.1824%** | 🔵 Blue points |
+| **(0.5%, 0.75%]** | 168 | **0.0034%** | 🟠 Orange points |
+| **(0.75%, 1.0%]** | 1 | **0.0000%** | 🟠 Orange points |
+| **(1.0%, ∞)** | 0 | **0.0000%** | *None* |
 
 ### 3. Edge Case Analysis
 
@@ -145,132 +148,221 @@ The minor deviations (orange points) observed in the 0.5%–1.0% range are isola
 
 In these rare scenarios, numerical discrepancies tend to increase closer to the load application point. However, even under these extreme conditions, the maximum error strictly remains **below 1%**. For all standard pavement structures, WuWan consistently maintains a precision deviation of **< 0.5%**.
 
-![Accuracy Validation](demo_figure/verification_50000.png)
+![Accuracy Validation](demo_figure/verification.png)
+
+### 4. Large-Scale Back-Calculation Validation (500,000 Cases, No Error)
+
+To verify that the inverse engine is mathematically consistent with the forward solver, the noise-free deflections from the same **500,000** randomly generated 5-layer structures were fed back into the back-calculation routine, and the recovered moduli were compared against the known "true" values.
+
+**Figure (a)–(e)** plot predicted vs. true modulus for each layer. Every layer achieves a coefficient of determination of **$R^2 = 1.0000$**, with a Median Absolute Percentage Error (MdAPE) of:
+
+| Layer | MdAPE | Max Error (isolated cases) |
+| :---: | :--- | :--- |
+| **1** | 0.0000% | — |
+| **2** | 0.0000% | — |
+| **3** | 0.0001% | 29.55% (True = 552 MPa) |
+| **4** | 0.0001% | 117.57% (True = 105 MPa) |
+| **5** | 0.0000% | — |
+
+**Figure (f)** shows the per-layer relative error distribution: Layers 1, 2, and 5 stay tightly centered on zero, while Layers 3 and 4 — which contribute the least to the surface deflection basin — show a wider (but still sub-0.001%) spread.
+
+**Figure (g)** breaks down the residual magnitude across all 500,000 cases on a log scale:
+
+| log₁₀\|Residual\| Range | Percentage of Cases | Count |
+| :--- | :--- | :--- |
+| **< -16** (machine precision) | **65.11%** | 325,536 |
+| **-16 to -12** | **34.88%** | 174,423 |
+| **-12 to -9** | 0.00% | 23 |
+| **-9 to -6** | 0.00% | 18 |
+
+In other words, **99.99%** of the 500,000 structures are recovered to within floating-point precision. The handful of outlier cases (41 total) with larger residuals are confined to Layers 3 and 4, consistent with the known equifinality of layers that have weak influence on the measured surface deflection signal — the same effect already observed in the noisy back-calculation example below.
+
+![Backcalculation Validation](demo_figure/backcalculation_halfmillion.png)
 
 ---
 
 ## ⚡ Quick Start: Forward Calculation
 
-This example demonstrates how to perform a high-speed forward calculation for a 5-layer pavement system and retrieve both deflections and analytical gradients (Jacobian) using the **WuWan** C++ backend.
+This example demonstrates how to perform a forward calculation for a 5-layer pavement system using **WuWanGUI**, the desktop front-end built on top of the same high-performance **WuWan** C++ backend.
 
-### 1. Setup Data and Call Solver
+### 1. Launch WuWanGUI and Select a Module
 
-The following logic follows the standard workflow: defining the structure, preparing contiguous memory for C++, and executing the solver.
+Launching `WuWan.py` opens the main menu, from which the user picks one of three analysis modules: **Forward Calculation**, **Back Calculation**, or **Sensor Location Optimization**.
 
-```python
-import time
-import numpy as np
-import pandas as pd
-import WuWan_pavement_forward
-data = {
-        'Layer':            ['Layered System', 'layer #', '1', '2', '3', '4', '5', '', '', '','Stress [MPa]'],
-        'Modulus [MPa]':    ['Layered System', 'Modulus [MPa]', '4000', '400', '300', '200', '100', '', '', '','0.95'],
-        'Poisson [-]':      ['Layered System', 'Poisson [-]', '0.30', '0.35', '0.35', '0.40', '0.40', '', '', '', 'Radius [mm]'],
-        'Thickness [mm]':   ['Layered System', 'Thickness [mm]', '150', '240', '300', '500', 'semi-inf', '', '', '','150'],
-        '':  ['', '', '', '', '', '', '', '', '', '', ''],
-        'Evaluation point': ['Evaluation point #', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10' ],
-        'r [mm]':           ['r [mm]', '0', '300', '600', '900', '1200', '1500', '1800', '2000', '3000', '4000'],
-        'Deflection [μm]':  ['Deflection [μm]', '', '', '', '', '', '', '', '', '', ''],
-        }
-df = pd.DataFrame(data)
-df = pd.DataFrame.from_dict(data, orient='index')
-df.to_csv('data.csv', index=False)
+![WuWanGUI Main Menu](demo_figure/gui_main_menu.png)
 
-df_num = df.apply(pd.to_numeric, errors='coerce').fillna(0.0)
-arr = df_num.to_numpy()
-arr = np.ascontiguousarray(df_num.to_numpy(), dtype=np.float64)
-input_data = np.ascontiguousarray(arr.T)
-# === Call C++ ===
-print("Python: Calling C++...")
-ret = WuWan_pavement_forward.Calculation(input_data, calc_grad=True)
-end = time.perf_counter()
-print("deflections:", ret.result_displacement)
-print("grad:", ret.J_E)
-```
+### 2. Define the Layered System and Compute
 
-### 2. Output & Visualization
+On the **Forward Calculation** page, the user fills in the editable cells (blue) of the layered system table — modulus, Poisson's ratio, and thickness for each of the 5 layers, plus the applied stress, load radius, and sensor offsets ($r$) for each evaluation point — then clicks **Compute!**.
 
-The solver generates the surface deflection basin profile. Below are the results from the demo:
+![Forward Calculation Input](demo_figure/gui_forward_input.png)
 
-```Plaintext
-Python: Calling C++...
-deflections: [0.44186744 0.30873646 0.21676407 0.16808461 0.13797657 0.11674337 
-               0.10064475 0.09188363 0.0624335  0.04627289]
-grad: [[-2.48956993e-05 -2.35325278e-04 -2.04079722e-04 -2.63150101e-04
-  -1.34300592e-03]
- [-5.45282398e-06 -1.37737859e-04 -1.68268547e-04 -2.43524360e-04
-  -1.32644585e-03]
- [-8.72171458e-07 -4.12614680e-05 -9.94771277e-05 -1.95007054e-04
-  -1.27926249e-03]
- [-6.48066584e-07 -7.45964845e-06 -4.64284696e-05 -1.38462798e-04
-  -1.20887387e-03]
- [-6.40643617e-07  6.83431698e-07 -1.78697327e-05 -8.93774172e-05
-  -1.12450960e-03]
- [-5.31834037e-07  2.23559776e-06 -4.80736168e-06 -5.30852137e-05
-  -1.03451018e-03]
- [-4.05946534e-07  2.41149686e-06  8.08046065e-07 -2.85735311e-05
-  -9.45132738e-04]
- [-3.33276661e-07  2.32692214e-06  2.57471518e-06 -1.73096406e-05
-  -8.87917836e-04]
- [-1.12120438e-07  1.37095054e-06  3.73979321e-06  5.75100302e-06
-  -6.48055323e-04]
- [-3.64239311e-08  5.61953149e-07  2.21478585e-06  7.54918589e-06
-  -4.85262516e-04]]
-```
-![Deflection Profile](demo_figure/wuwan_deflection_profile.png)
-*Methodology Note: The left axis represents the physical depth of the pavement layers ($z$). The right axis represents the vertical surface deflection ($w$), which is magnified 1000x for visibility.*
+### 3. Output & Visualization
 
-## ⚡ Quick Start: Inverse Calculation
+The deflection results (pink cells) are filled in instantly. Clicking **Show Profile Plot** reveals the deflection basin inline, alongside the input table:
 
-This example demonstrates how to perform back-calculation (inversion) to determine layer moduli from deflection data. This can be executed via the `WuWan_pavement_inverse.py` script or the **WuWanGUI**.
+![Forward Calculation Result](demo_figure/gui_forward_result.png)
 
-### 3. Inversion Setup & Noise Simulation
+| Evaluation Point | $r$ [mm] | Deflection [μm] |
+| :---: | :---: | :---: |
+| 1 | 0 | 378.6 |
+| 2 | 100 | 364.9 |
+| 3 | 200 | 325.4 |
+| 4 | 300 | 291.3 |
+| 5 | 450 | 248.1 |
+| 6 | 600 | 214.0 |
+| 7 | 900 | 167.0 |
+| 8 | 1200 | 136.8 |
+| 9 | 1500 | 115.7 |
+| 10 | 1800 | 99.8 |
 
-To simulate real-world FWD (Falling Weight Deflectometer) conditions, we use a synthetic dataset where the "True" moduli are known ($E_{true} = [8000, 400, 300, 200, 100]$ MPa).
+## ⚡ Quick Start: Inverse Calculation (without error, perfect case)
 
-**Random noise** is intentionally added to the input parameters—including all layer thicknesses, sensor positions, and load—before the solver sees them. This tests the robustness of the **WuWan** backend against measurement errors.
+This example demonstrates how to perform back-calculation (inversion) using the **Back Calculation** module of **WuWanGUI**, recovering layer moduli from a noise-free deflection basin.
 
-| Parameter | Original Value | Added Noise (Simulated Error) | Modified Input (Solver Sees) |
-| :--- | :--- | :--- | :--- |
-| **Load** | 0.95 MPa | $-0.004$ MPa | **0.946 MPa** |
-| **Thickness L1** | 50.0 mm | $-4.70$ mm | **45.30 mm** |
-| **Thickness L2** | 200.0 mm | $-0.21$ mm | **199.79 mm** |
-| **Thickness L3** | 300.0 mm | $+3.88$ mm | **303.88 mm** |
-| **Thickness L4** | 600.0 mm | $+6.56$ mm | **606.56 mm** |
-| **Sensor (r=300)** | 300.0 mm | $+1.29$ mm | **301.29 mm** |
-| **Sensor (r=600)** | 600.0 mm | $-0.58$ mm | **599.42 mm** |
-| **...** | ... | ... | ... |
+### 1. Define the Deflection Bowl & Loading System
 
-*(Note: Noise was applied to all 9 sensor positions and deflection readings as shown in the error analysis log.)*
+On the **Back Calculation** page, the user enters the load (Stress = 0.95 MPa, Radius = 150 mm) and the measured deflection at each of the 10 evaluation points. Here the deflection basin is generated directly from a known set of **"True" moduli** ($E_{true} = [8000, 400, 300, 200, 100]$ MPa), with no measurement noise injected.
 
-### 4. Results & Visualization
+![Deflection Bowl & Loading System](demo_figure/gui_backcalc_deflection.png)
 
-The solver attempts to recover the moduli by minimizing the error between calculated and measured deflections. Despite significant noise in the inputs, the optimizer converges in **0.010 seconds**.
+### 2. Define the Layered System (Initial Guess)
+
+Next, the user provides the layer thicknesses, Poisson's ratios, and an **initial modulus guess** for the solver to start from — deliberately different from the true values, to test convergence. WuWanGUI also displays typical modulus ranges for common pavement layer types as a reference.
+
+![Layered System Setup](demo_figure/gui_backcalc_layers.png)
+
+### 3. Run Single Calculation & Results
+
+Clicking **Run Single Calculation** (no uncertainty / Monte Carlo sampling) recovers the best-fit elastic moduli from the deflection basin and renders the resulting layered profile.
+
+![Single Back-Calculation Result](demo_figure/gui_backcalc_result.png)
 
 #### Modulus Comparison (True vs. Back-calculated)
 
-The table below visualizes the accuracy of the inversion. Note that due to the added noise in thickness and load, the solver correctly finds the *effective* modulus that satisfies the physical equilibrium, which may deviate slightly from the theoretical "True" value.
+| Layer | True Modulus ($E_{true}$) | Initial Guess ($E_0$) | **Calculated Modulus ($E_{calc}$)** | Deviation |
+| :--- | :--- | :--- | :--- | :--- |
+| **1 (Surface)** | 8000 MPa | 5000 MPa | **8000.00 MPa** | 0.0000% |
+| **2 (Base)** | 400 MPa | 1000 MPa | **400.00 MPa** | 0.0000% |
+| **3 (Subbase)** | 300 MPa | 600 MPa | **300.00 MPa** | 0.0000% |
+| **4 (Soil)** | 200 MPa | 300 MPa | **200.00 MPa** | 0.0000% |
+| **5 (Subgrade)** | 100 MPa | 100 MPa | **100.00 MPa** | 0.0000% |
 
-| Layer | True Modulus ($E_{true}$) | **Calculated Modulus ($E_{calc}$)** | Deviation |
-| :--- | :--- | :--- | :--- |
-| **1 (Surface)** | **8000 MPa** | **10330.8 MPa** | +29.1% |
-| **2 (Base)** | **400 MPa** | **411.2 MPa** | +2.8% |
-| **3 (Subbase)** | **300 MPa** | **292.8 MPa** | -2.4% |
-| **4 (Soil)** | **200 MPa** | **195.9 MPa** | -2.1% |
-| **5 (Subgrade)** | **100 MPa** | **99.4 MPa** | **-0.6%** |
+> **Observation:** Since the deflection basin contains no error, every layer — including the deeper, less-sensitive Layers 3 and 4 — is recovered essentially exactly from the deliberately off initial guess. This isolates the intrinsic accuracy of the **WuWan** solver itself, separate from the effects of measurement noise.
 
-> **Observation:** The subgrade modulus (Layer 5) is recovered with extremely high accuracy (**0.6% error**), which is critical for structural evaluation. The surface layer shows higher deviation, which is expected when thickness noise (approx. 9% error on L1 thickness) is introduced.
+---
 
-#### Optimization Performance
+## 🎲 Quick Start: Monte Carlo Back-Calculation (Uncertainty Analysis)
 
-The **WuWan** C++ backend utilizes analytical gradients (Jacobian) to accelerate convergence.
+Building on the same **Back Calculation** module, this example quantifies how measurement uncertainty propagates into the recovered moduli. Instead of a single noise-free deflection basin, **WuWanGUI** repeatedly resamples randomized (triangular-distributed) noise on the layered system, the load, and the deflections, and re-runs the back-calculation for each trial.
 
-* **Total Run Time:** `0.006 seconds`
-* **Total C++ Calls:** `18`
-* **Gradient Calculations:** `7`
-* **Final Cost (Residual):** `5.01e-06`
+### 1. Layered System Noise & Setting
 
-*(Note: Representation of cost reduction over 15 iterations)*
+In addition to the initial modulus guess, the user defines a **modulus search range** (lower/upper bound) per layer and a **thickness noise** (± mm) to be sampled for each Monte Carlo trial.
+
+![Layered System Noise & Setting](demo_figure/gui_mc_layer_noise.png)
+
+### 2. Deflections & Loading Noise Setting
+
+The user also sets the **load (stress) noise level** and, per sensor, a **radial position noise** (r ± mm) and **deflection noise** (± μm) — simulating realistic FWD measurement uncertainty.
+
+![Deflections & Loading Noise Setting](demo_figure/gui_mc_deflection_noise.png)
+
+### 3. Run Monte Carlo & Results
+
+Clicking **Run Monte Carlo** repeats the back-calculation **N = 1200** times, each with a freshly sampled noise realization, and plots the resulting distribution of recovered elastic moduli per layer as violin plots (95% CI, IQR, mean, and median).
+
+![Monte Carlo Back-Calculation Result](demo_figure/gui_mc_result.png)
+
+#### Uncertainty Summary
+
+[UR] Tail Risk: **< 0.3** Excellent | 0.3–0.8 Acceptable | **> 0.8** Poor.
+[RR] Core Spread: **< 20%** Excellent | 20–50% Acceptable | **> 50%** Poor.
+
+| Layer | Thickness [mm] | Mean [MPa] | Median [MPa] | CI (2.5%) | CI (97.5%) | UR | RR (%) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **L1** | 150 | 7991.06 | 7944.96 | 6780.16 | 9366.88 | -0.107 | **11.63** |
+| **L2** | 240 | 408.60 | 399.58 | 191.49 | 668.78 | -0.215 | **44.38** |
+| **L3** | 300 | 434.42 | 299.06 | 126.29 | 1783.63 | 4.389 | **75.97** |
+| **L4** | 500 | 219.14 | 200.13 | 88.70 | 450.71 | 1.112 | **45.02** |
+| **L5** | semi-inf | 100.07 | 100.08 | 95.63 | 105.23 | 0.181 | **3.11** |
+
+> **Observation:** The subgrade (Layer 5) is recovered with **excellent** core spread (RR = 3.11%) despite the injected noise, while Layer 3 — the layer with the least influence on the surface deflection basin — shows a **poor** core spread (RR = 75.97%) and the largest tail risk (UR = 4.39). This mirrors the equifinality already seen in the half-million-case validation above: layers with weak sensitivity to surface deflections are inherently harder to pin down once measurement noise is introduced, even though the underlying solver itself is exact.
+
+---
+
+## 🎯 Quick Start: Sensor Location Optimization
+
+This example demonstrates the **Sensor Location Optimization** module, which searches for the FWD sensor radii ($r$) that maximize the information content of the deflection basin for back-calculation, under realistic uncertainty in the layered system, load, and measurement noise.
+
+### 1. Define the Deflection Bowl, Loading & Layered System
+
+As with the Back Calculation module, the user starts from a measured deflection basin (Stress = 0.95 MPa, Radius = 150 mm) and the corresponding layered system (initial moduli, Poisson's ratios, thicknesses). An optional **"True Modulus"** row lets the user compare the optimization against known reference values.
+
+![Deflection Bowl & Loading System](demo_figure/gui_slo_deflection.png)
+![Layered System](demo_figure/gui_slo_layers.png)
+
+### 2. Sensor Search Space & DE Settings
+
+The user sets how many sensors are **fixed** (kept at their original positions) vs. **free** to move, the allowable search range $[r_{min}, r_{max}]$, the minimum spacing between sensors, and the Differential Evolution (DE) solver settings (population size, iterations, tolerance, random seed).
+
+![Sensor Search Space & DE Settings](demo_figure/gui_slo_search_settings.png)
+
+### 3. Layered System & Deflection/Loading Noise
+
+Just like the Monte Carlo back-calculation, the modulus search range, thickness noise, load noise, and per-sensor deflection noise are defined as triangular-distributed priors. These define the uncertainty that the optimizer is made **robust** against.
+
+![Layered System Noise & Setting](demo_figure/gui_slo_layer_noise.png)
+![Deflections & Loading Noise Setting](demo_figure/gui_slo_deflection_noise.png)
+
+### 4. Run Optimization & Results
+
+Clicking **Run Sensor Location Optimization** performs a robust D-optimal search (Differential Evolution over a Sample Average Approximation of the expected Fisher Information) that keeps the first 3 sensors fixed and repositions the remaining 7 within $[300, 3000]$ mm, subject to a 100 mm minimum gap.
+
+![Sensor Location Optimization Result](demo_figure/gui_slo_result.png)
+
+#### Optimization Metrics (Initial vs. Optimized)
+
+| Metric | Initial | Optimized |
+| :--- | :---: | :---: |
+| Robust SAA objective $-E[\ln\det]$ (lower is better) | 29.3387 | **26.2396** |
+| $\log_{10}\det(\text{FIM})$ at true moduli (higher is better) | -11.5099 | **-10.5124** |
+| Condition number | 239,262 | **49,382** |
+
+This corresponds to a **D-efficiency of 1.86×** relative to the initial layout, shrinking the 95% confidence-ellipsoid volume of the recovered moduli to **21.2%** of its original size.
+
+#### Sensor Layout — Initial vs. Optimized
+
+| Point | Status | Initial $r$ [mm] | Optimized $r$ [mm] | $\Delta r$ [mm] |
+| :---: | :---: | :---: | :---: | :---: |
+| P1 | Fixed | 0.0 | 0.0 | +0.0 |
+| P2 | Fixed | 100.0 | 100.0 | +0.0 |
+| P3 | Fixed | 200.0 | 200.0 | +0.0 |
+| P4 | Free | 300.0 | 300.2 | +0.2 |
+| P5 | Free | 450.0 | 629.3 | +179.3 |
+| P6 | Free | 600.0 | 822.5 | +222.5 |
+| P7 | Free | 900.0 | 1558.9 | +658.9 |
+| P8 | Free | 1200.0 | 1730.9 | +530.9 |
+| P9 | Free | 1500.0 | 2899.9 | +1399.9 |
+| P10 | Free | 1800.0 | 3000.0 | +1200.0 |
+
+> **Observation:** The optimizer pushes the free sensors outward, toward the edge of the allowed search range, since the deepest/least-sensitive layers (Layer 3 and 4 — see the validation and Monte Carlo sections above) are best identified by sensors farther from the load, where their relative contribution to the deflection basin is largest.
+
+### 5. Preview: Convergence, Modulus & Layout Comparison
+
+WuWanGUI's **Preview** tab provides three additional diagnostic plots once the optimization finishes:
+
+**DE Convergence Curve** — tracks the D-efficiency of the candidate layout (relative to the initial layout) over the 200 DE iterations.
+
+![DE Convergence Curve](demo_figure/gui_slo_de_curve.png)
+
+**Modulus Distribution Comparison** — re-runs the Monte Carlo back-calculation under the *initial* and *optimized* sensor layouts side by side, showing how the optimized layout narrows the recovered modulus distribution for every layer.
+
+![Modulus Distribution Comparison](demo_figure/gui_slo_modulus_comparison.png)
+
+**Sensor Layout Comparison** — visualizes the initial (top) vs. optimized (bottom) sensor positions along the radial axis.
+
+![Sensor Layout Comparison](demo_figure/gui_slo_layout_comparison.png)
 
 ---
 
@@ -290,11 +382,8 @@ For comprehensive guidance on using WuWan:
 - [x] **C++ Core Rewrite**: Transformed from Cython to C++ with Eigen/Boost.
 - [x] **Forward Calculation & Analytical Gradients**: Implementation of high-speed forward modeling and derivative calculation.
 - [x] **Deterministic Back-calculation**: Fast inverse analysis for moduli estimation.
-- [ ] **Bayesian Uncertainty Analysis**: Implementation of MCMC or variational inference for posterior distributions (In Progress).
-- [ ] **Global Sensitivity Analysis**: Sobol indices or similar methods to quantify parameter influence (In Progress).
-- [ ] **Batch Error Simulation**: Wrappers for large-scale Monte Carlo simulations with noise injection.
-- [ ] **Multi-core Parallelization**: Leverage multi-threading for batch processing.
-- [ ] **3D Visualization Tools**: Interactive visualization of layer structure and deflection basins.
+- [x] **Monte Carlo Uncertainty Analysis**: Triangular-distributed noise injection on thickness, load, sensor position, and deflection, with UR/RR risk-spread reporting per layer.
+- [x] **Sensor Location Optimization**: Robust D-optimal sensor placement via Differential Evolution over a Sample Average Approximation of the Fisher Information Matrix. *This is a **pioneer / preliminary release** of the module — the search heuristics and robustness criteria are still being refined in future versions.*
 
 ---
 
