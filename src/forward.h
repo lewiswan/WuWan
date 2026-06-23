@@ -9,6 +9,7 @@
 
 inline void RunSimulationKernel(ModelParams& params, CalcBuffer& buffer, SimResults& results, const Eigen::Ref<const Eigen::MatrixXd>& input_arr, bool calc_grad) {
     Variable_Assignment(params);
+    results.count_number.setZero();
 
     for (int i = 0; i < 10; ++i) {
         params.evaluation(0) = input_arr(i + 1, 6);

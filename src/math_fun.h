@@ -12,6 +12,8 @@
 #include <boost/math/quadrature/gauss.hpp>
 #include <cmath>
 #include <vector>
+#include <Eigen/Dense>
+#include <random>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -208,7 +210,6 @@ inline double BJ1(double value) {
 inline void bessel_zeros(CalcBuffer& buffer, double r, double a) {
     constexpr int num_zeros = 120;
     
-    // 获取编译时/首次运行时生成的表
     const auto& j0_table = BesselZeros::J0();
     const auto& j1_table = BesselZeros::J1();
     
@@ -362,7 +363,6 @@ inline void Integrand_52(CalcBuffer& buffer, const ModelParams& params) {
     double inv0  = 1.0 / M[2];
     
     
-    // 完全展开的回代 - 直接用局部变量
     double c17 = vb[17] * inv17;
     double c16 = (vb[16] - M[131] * c17) * inv16;
     double c15 = (vb[15] - M[123] * c16 - M[124] * c17) * inv15;
@@ -382,7 +382,6 @@ inline void Integrand_52(CalcBuffer& buffer, const ModelParams& params) {
     double c1  = (vb[1] - M[11]*c2 - M[12]*c3 - M[13]*c4 - M[14]*c5 - M[15]*c6) * inv1;
     double c0  = (vb[0] - M[3]*c1 - M[4]*c2 - M[5]*c3 - M[6]*c4 - M[7]*c5) * inv0;
     
-    // 写回结果
     Coe[0] = c0;   Coe[1] = c1;   Coe[2] = c2;   Coe[3] = c3;
     Coe[4] = c4;   Coe[5] = c5;   Coe[6] = c6;   Coe[7] = c7;
     Coe[8] = c8;   Coe[9] = c9;   Coe[10] = c10; Coe[11] = c11;
@@ -519,7 +518,6 @@ inline void Solve_dXdE(CalcBuffer& buffer) {
     // Part 2: Backward Substitution (Uz = y)
     // =========================================================
     
-    // 预计算倒数 - 避免重复除法
     double inv17 = 1.0 / M[138];
     double inv16 = 1.0 / M[130];
     double inv15 = 1.0 / M[122];
@@ -539,7 +537,6 @@ inline void Solve_dXdE(CalcBuffer& buffer) {
     double inv1  = 1.0 / M[10];
     double inv0  = 1.0 / M[2];
 
-    // 完全展开的回代 - 全部使用局部变量，最大化寄存器利用
     double z17 = y17 * inv17;
     double z16 = (y16 - M[131] * z17) * inv16;
     double z15 = (y15 - M[123] * z16 - M[124] * z17) * inv15;
@@ -559,7 +556,6 @@ inline void Solve_dXdE(CalcBuffer& buffer) {
     double z1  = (y1 - M[11]*z2 - M[12]*z3 - M[13]*z4 - M[14]*z5 - M[15]*z6) * inv1;
     double z0  = (y0 - M[3]*z1 - M[4]*z2 - M[5]*z3 - M[6]*z4 - M[7]*z5) * inv0;
 
-    // 写回结果 - 一次性写入
     Z[0] = z0;   Z[1] = z1;   Z[2] = z2;   Z[3] = z3;
     Z[4] = z4;   Z[5] = z5;   Z[6] = z6;   Z[7] = z7;
     Z[8] = z8;   Z[9] = z9;   Z[10] = z10; Z[11] = z11;
@@ -587,3 +583,6 @@ inline void Integrand_IA(CalcBuffer& buffer, const ModelParams& params, bool& p_
         p_initialized = true;
     }
 }
+
+
+

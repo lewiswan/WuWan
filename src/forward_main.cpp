@@ -37,7 +37,8 @@ SimResults Calculation(Eigen::Ref<InputMat> input_arr, bool calc_grad) {
 PYBIND11_MODULE(WuWan_pavement_forward, m) {
     py::class_<SimResults>(m, "SimResults")
         .def_readonly("result_displacement", &SimResults::result_displacement)
-        .def_readonly("J_E", &SimResults::J_E);
+        .def_readonly("J_E", &SimResults::J_E)
+        .def_readonly("count_number", &SimResults::count_number);
     m.doc() = "5 - layer deflections forward model"; 
     m.def("Calculation", &Calculation, "Main calculation function returning deflection array", py::arg("input_arr"), py::arg("calc_grad"));
 }

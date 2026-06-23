@@ -6,7 +6,6 @@ import pandas as pd
 from scipy.special import jv
 from scipy.integrate import quad  
 from scipy.special import j0, j1
-#import WuWan_pavement_forward
 from scipy.optimize import least_squares
 from tkinter import *  
 
@@ -169,7 +168,7 @@ def Backcalculation(arr, arr2, forward_module=None):
     u_target, arr = add_error(arr, arr2)
     lower_bounds_phys = arr2[1, 2:7]
     upper_bounds_phys = arr2[2, 2:7]
-    x0_phys = arr[1, 2:7]
+    x0_phys = arr[1, 2:7]           
     
     x_prior_log = (np.log(lower_bounds_phys) + np.log(upper_bounds_phys)) / 2
     sigme_prior = (np.log(upper_bounds_phys) - np.log(lower_bounds_phys)) / 4
@@ -215,7 +214,9 @@ def Backcalculation(arr, arr2, forward_module=None):
 
     print(f"\n  **Inversion modulus results [MPa]:**")
     for i, (final, initial) in enumerate(zip(final_phys_x, arr[1, 2:7]), 1):
+        error = (final - initial) / initial * 100
         print(f" Final **E{i}** = {final:.6f}")
 
+    print(f"**Maximum elastic modulus error:** {np.max(np.abs(arr[1, 2:7] - final_phys_x)):.9f}")
 
     return final_phys_x

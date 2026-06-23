@@ -20,6 +20,8 @@ void gaussian_quadrature_integrate(ModelParams& params, CalcBuffer& buffer, SimR
     double bj0_val, bj1_val;
     double common_factor, factor_common_2;
     double integrand;
+    int method_52_count = 0;
+    int method_IA_count = 0;
     Vec2 exp_term = Vec2::Zero();
     
     Vec5 total_integral_gradient = Vec5::Zero();
@@ -51,7 +53,7 @@ void gaussian_quadrature_integrate(ModelParams& params, CalcBuffer& buffer, SimR
             e_Index = std::exp(buffer.points(j) * (params.z(0) - params.z(1)) / params.H);
             if (e_Index > 0.05){
                 Coefficient_52(buffer, params, j);
-                
+                method_52_count++;
                 Integrand_52(buffer, params); 
 
                 exp_term(0) = std::exp(buffer.points(j) * (params.evaluation(1) / params.H - params.z(params.index) / params.H));  
@@ -76,6 +78,7 @@ void gaussian_quadrature_integrate(ModelParams& params, CalcBuffer& buffer, SimR
                     } 
                 }
             } else {
+                method_IA_count++;
                 Coefficient_IA(buffer, params, j);
                 Integrand_IA(buffer, params, p_initialized);
                 
@@ -132,6 +135,8 @@ void gaussian_quadrature_integrate(ModelParams& params, CalcBuffer& buffer, SimR
         }
 
         total_integral += interval_integral;
+        results.count_number(0) += method_52_count;
+        results.count_number(1) += method_IA_count;
         
         if (calc_grad) {
             total_integral_gradient += interval_integral_gradient;

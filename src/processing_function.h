@@ -100,7 +100,7 @@ inline void Variable_Assignment(ModelParams& params) {
     double f2_4       = F2[4];
     double b4_A       = 2.0 - 2.0 * f2_4;
     double b4_C       = 1.0 - f2_4 - 4.0 * nu[5] + 4.0 * f2_4 * nu[5];
-    double b4_D       = 1.0 + 3.0 * f2_4 - 4.0 * f2_4 * nu[5]; // Row 17 特有项
+    double b4_D       = 1.0 + 3.0 * f2_4 - 4.0 * f2_4 * nu[5]; // Term unique to Row 17
 
 
     // --- Row 0 ---
@@ -260,7 +260,7 @@ inline void Coefficient_52(CalcBuffer& buffer, const ModelParams& params, int j)
     M[18] = f3_1_x2 + T[18];
     M[19] = f1_1;
     M[20] = -2.0 * f1_2;
-    // 优化: T[22]*F1[2] - 2*F1[2]*F3[1]  =>  F1[2] * (T[22] - 2*F3[1])
+    // Optimization: T[22]*F1[2] - 2*F1[2]*F3[1]  =>  F1[2] * (T[22] - 2*F3[1])
     M[22] = f1_2 * (T[22] - f3_1_x2); 
 
     // --- Row 3 (Offset 24) ---
@@ -271,7 +271,7 @@ inline void Coefficient_52(CalcBuffer& buffer, const ModelParams& params, int j)
 
     // --- Row 4 (Offset 32) ---
     M[36] = T[36] * f1_2;
-    // 优化: T[37] + 2*F3[1] - 2*F2[1]*F3[1] => T[37] + 2*F3[1]*(1-F2[1])
+    // Optimization: T[37] + 2*F3[1] - 2*F2[1]*F3[1] => T[37] + 2*F3[1]*(1-F2[1])
     M[37] = T[37] + cross_term_1; 
 
     // --- Row 5 (Offset 40) ---
@@ -450,3 +450,4 @@ inline void Coefficient_IA(CalcBuffer& buffer, const ModelParams& params, int j)
     M(3, 5) = -F1[2]; // F1[k+1] -> F1[2]
     M(3, 6) = M_Template(3, 6) + 2.0 * F3[1];
 }
+
