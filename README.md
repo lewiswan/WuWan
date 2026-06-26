@@ -136,6 +136,69 @@ The core algorithm solves the Layered Elastic Theory (LET) equations using the f
 
 ---
 
+## Code Roadmap
+
+The diagram below maps how a call from the GUI flows down into the C++ core and back, and how the uncertainty/optimization layer is built on top of the same core.
+
+```mermaid
+flowchart TD
+    classDef entry fill:#0b2447,color:#fff,stroke:#0b2447,stroke-width:2px
+    classDef core fill:#6a4c93,color:#fff,stroke:#6a4c93,stroke-width:2px
+    classDef blue fill:#2f6fb0,color:#fff,stroke:#2f6fb0,stroke-width:2px
+    classDef lightblue fill:#a9c9e6,color:#0b2447,stroke:#2f6fb0,stroke-width:1px
+    classDef gray fill:#595959,color:#fff,stroke:#595959,stroke-width:1px
+    classDef module fill:#3b4b59,color:#fff,stroke:#3b4b59,stroke-width:2px
+
+    GUI["WuWanGUI.py<br/>Input: layered system (E, nu, h), load,<br/>evaluation points (r), noise / search settings<br/>Output: deflections, recovered moduli,<br/>optimized sensor layout"]:::entry
+
+    subgraph CORE["src/ - C++ Forward and Inverse Core"]
+        direction TB
+        TABLE["bessel_table.h<br/>Precomputed Bessel-zero lookup table"]:::gray
+        PROC["processing_function.h + math_fun.h<br/>Gauss-Legendre quadrature, zero-segmented<br/>Bessel integration, coefficient / derivative kernels"]:::gray
+        STRUCT["structures.h<br/>ModelParams, CalcBuffer, SimResults,<br/>BackCalcParams / Buffer / Result"]:::gray
+        FWD["forward_main.cpp + interand_solver.cpp<br/>Calculation()<br/>Deflection and analytical Jacobian<br/>for the 5-layer half-space"]:::core
+        FUNCTOR["inverse_functor.h + projected_lm.h<br/>Bound-projected Levenberg-Marquardt<br/>residual / Jacobian solver"]:::lightblue
+        INV["inverse_main.cpp<br/>BackCalculation()<br/>Moduli recovery from a<br/>measured deflection basin"]:::blue
+
+        TABLE --> PROC
+        PROC --> STRUCT
+        STRUCT --> FWD
+        FWD --> FUNCTOR
+        FUNCTOR --> INV
+    end
+
+    GUI -->|forward / back-calc call| CORE
+    FWD -. output .-> GUI
+    INV -. output .-> GUI
+
+    subgraph OPTMOD["Uncertainty and Sensor-Optimization Module"]
+        direction TB
+        MC["montecarlo_main.cpp<br/>ParalleMonteCarlo()<br/>OpenMP-parallel resampling of recovered<br/>moduli under triangular noise"]:::module
+        SLO["WuWan_pavement_slo.py<br/>optimize_sensor_layout()<br/>Differential Evolution over a sample-average<br/>approximation of the Fisher Information Matrix"]:::module
+        COMPARE["run_monte_carlo_at()<br/>Re-runs Monte Carlo at the initial vs.<br/>optimized sensor layout for comparison"]:::module
+
+        SLO --> COMPARE
+    end
+
+    INV --> MC
+    FWD -->|Jacobian for FIM| SLO
+    MC --> COMPARE
+    GUI -->|MC / SLO call| OPTMOD
+    OPTMOD -. output .-> PLOTS["Violin plots, DE convergence curve,<br/>layout and modulus comparison figures"]
+    PLOTS -. rendered in .-> GUI
+```
+
+| Stage | File(s) | Role |
+| :--- | :--- | :--- |
+| **Entry point** | `WuWanGUI.py` | Tkinter front-end; dispatches to the compiled pybind11 modules for each analysis page |
+| **Forward kernel** | `forward_main.cpp`, `interand_solver.cpp` | Gauss-Legendre / Bessel integration of the layered-system Hankel transform, plus analytical $\partial u/\partial E$ |
+| **Inverse kernel** | `inverse_main.cpp`, `inverse_functor.h`, `projected_lm.h` | Bound-projected Levenberg-Marquardt solver that drives the forward kernel to fit a measured deflection basin |
+| **Shared support** | `structures.h`, `processing_function.h`, `math_fun.h`, `bessel_table.h` | Data containers, quadrature/coefficient kernels, and the precomputed Bessel-zero table used by both kernels |
+| **Uncertainty module** | `montecarlo_main.cpp` | OpenMP-parallel Monte Carlo resampling of the inverse kernel under triangular-distributed measurement noise |
+| **Optimization module** | `WuWan_pavement_slo.py` | Differential Evolution search (on top of the forward kernel's Jacobian) for the FWD sensor layout that maximizes the Fisher Information Matrix's determinant |
+
+---
+
 ## Quick Start: Forward Calculation
 
 This example performs a forward calculation for a 5-layer pavement system using **WuWanGUI**, the desktop front-end built on top of the same **WuWan** C++ backend.
@@ -391,7 +454,7 @@ For comprehensive guidance on using WuWan:
 
 ---
 
-## Roadmap
+## Development Roadmap
 
 - [x] **C++ Core Rewrite** — transformed from Cython to C++ with Eigen/Boost.
 - [x] **Forward Calculation & Analytical Gradients** — high-speed forward modeling and derivative calculation.
