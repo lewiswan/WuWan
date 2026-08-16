@@ -5,6 +5,15 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# LLVM's OpenMP runtime handles hybrid P/E-core CPUs better than MSVC's vcomp
+# (OpenMP 2.0), but it ABORTS the process on startup if Intel's libiomp5md.dll
+# is already loaded -- which is exactly what Anaconda's MKL-backed numpy/scipy
+# do ("OMP: Error #15 ... multiple copies of the OpenMP runtime"). Default OFF
+# so the build works in a stock Anaconda environment; turn it ON only for an
+# environment you control (pip/OpenBLAS numpy, or a frozen bundle).
+option(WUWAN_MSVC_LLVM_OPENMP
+       "MSVC: use /openmp:llvm instead of vcomp (conflicts with Anaconda MKL)" OFF)
+
 include(CheckIPOSupported)
 check_ipo_supported(RESULT result OUTPUT output)
 if(result)
@@ -153,15 +162,12 @@ target_compile_definitions(WuWan_pavement_montecarlo PRIVATE
 )
 
 target_compile_features(WuWan_pavement_montecarlo PRIVATE cxx_std_17)
-# MSVC's default /openmp is vcomp, frozen at OpenMP 2.0: its barrier parks
-# threads aggressively (low CPU utilisation and low package power while the
-# fast threads wait) and it has no OMP_PROC_BIND/OMP_PLACES, so it cannot be
-# told anything about hybrid P/E-core topology. /openmp:llvm (VS2019 16.9+,
-# MSVC_VERSION 1928) swaps in LLVM's libomp: OpenMP 3.1+, a spin-then-sleep
-# barrier tunable via KMP_BLOCKTIME, and working affinity control. It is set
+# Opt-in LLVM OpenMP on MSVC (see WUWAN_MSVC_LLVM_OPENMP above). It is set
 # INSTEAD of linking OpenMP::OpenMP_CXX so the two /openmp forms cannot clash.
-if(MSVC AND MSVC_VERSION GREATER_EQUAL 1928)
-    message(STATUS "MSVC: using LLVM OpenMP runtime (/openmp:llvm)")
+# The default path uses vcomp, which coexists with Anaconda's Intel OpenMP.
+if(MSVC AND WUWAN_MSVC_LLVM_OPENMP AND MSVC_VERSION GREATER_EQUAL 1928)
+    message(STATUS "MSVC: using LLVM OpenMP runtime (/openmp:llvm) -- "
+                   "requires an environment without Intel libiomp5md.dll")
     target_compile_options(WuWan_pavement_montecarlo PRIVATE /openmp:llvm)
 elseif(OpenMP_CXX_FOUND)
     target_link_libraries(WuWan_pavement_montecarlo PRIVATE OpenMP::OpenMP_CXX)
