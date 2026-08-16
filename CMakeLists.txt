@@ -153,7 +153,17 @@ target_compile_definitions(WuWan_pavement_montecarlo PRIVATE
 )
 
 target_compile_features(WuWan_pavement_montecarlo PRIVATE cxx_std_17)
-if(OpenMP_CXX_FOUND)
+# MSVC's default /openmp is vcomp, frozen at OpenMP 2.0: its barrier parks
+# threads aggressively (low CPU utilisation and low package power while the
+# fast threads wait) and it has no OMP_PROC_BIND/OMP_PLACES, so it cannot be
+# told anything about hybrid P/E-core topology. /openmp:llvm (VS2019 16.9+,
+# MSVC_VERSION 1928) swaps in LLVM's libomp: OpenMP 3.1+, a spin-then-sleep
+# barrier tunable via KMP_BLOCKTIME, and working affinity control. It is set
+# INSTEAD of linking OpenMP::OpenMP_CXX so the two /openmp forms cannot clash.
+if(MSVC AND MSVC_VERSION GREATER_EQUAL 1928)
+    message(STATUS "MSVC: using LLVM OpenMP runtime (/openmp:llvm)")
+    target_compile_options(WuWan_pavement_montecarlo PRIVATE /openmp:llvm)
+elseif(OpenMP_CXX_FOUND)
     target_link_libraries(WuWan_pavement_montecarlo PRIVATE OpenMP::OpenMP_CXX)
 endif()
 if(MSVC)

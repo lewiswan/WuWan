@@ -46,17 +46,29 @@ Eigen::VectorXd CalculateMedians(const Eigen::MatrixXd& mat, int num_rows) {
 }
 
 Eigen::MatrixXd ParalleMonteCarlo(Eigen::Ref<InputMat> input_arr, Eigen::Ref<InputMat2> input_arr2, int num_threads = -1) {
-    int n_samples_min = 800; 
-    int batch_size = 200; 
+    int n_samples_min = 800;
     int n_samples_max = 2000;
-    int n_cols_result = 5;            
+    int n_cols_result = 5;
     Eigen::MatrixXd all_results(n_samples_max, n_cols_result);
 
     if (num_threads > 0) {
         omp_set_num_threads(num_threads);
     }
 
-    #pragma omp parallel for
+    // Each convergence batch is a full parallel region: one barrier plus a serial
+    // median pass. At the default 200 samples a 32-thread machine only gets ~6
+    // iterations per thread per batch, so barrier and tail costs rival the useful
+    // work. Keep 200 on ordinary machines and widen it only for many-core hosts.
+    int batch_size = std::max(200, 8 * omp_get_max_threads());
+
+    // schedule(dynamic, 1): per-sample cost varies by more than 10x (each draw
+    // needs a different number of LM iterations to converge), and on hybrid CPUs
+    // (P/E cores) a core can be 2x slower than its neighbour. Static scheduling
+    // hands every thread the same ITERATION COUNT, so the fast threads finish
+    // early and idle at the barrier -- which caps speedup near 5x and leaves the
+    // machine at low utilisation/power. Dynamic hand-out costs ~ns against ~3ms
+    // of work per iteration, so the overhead is irrelevant.
+    #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < n_samples_min; ++i) {
         BackCalcResult result = BackCalculation(input_arr, input_arr2, 0);
         all_results.row(i) = result.final_moduli.transpose();
@@ -67,7 +79,7 @@ Eigen::MatrixXd ParalleMonteCarlo(Eigen::Ref<InputMat> input_arr, Eigen::Ref<Inp
 
     while (current_samples < n_samples_max){
         int next_samples = std::min(current_samples + batch_size, n_samples_max);
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic, 1)
         for (int i = current_samples; i < next_samples; ++i) {
             BackCalcResult result = BackCalculation(input_arr, input_arr2, 0);
             all_results.row(i) = result.final_moduli.transpose();
