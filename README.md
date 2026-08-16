@@ -149,7 +149,7 @@ flowchart TD
     classDef gray fill:#595959,color:#fff,stroke:#595959,stroke-width:1px
     classDef module fill:#3b4b59,color:#fff,stroke:#3b4b59,stroke-width:2px
 
-    GUI["WuWanGUI.py<br/>Input: layered system (E, nu, h), load,<br/>evaluation points (r), noise / search settings<br/>Output: deflections, recovered moduli,<br/>optimized sensor layout"]:::entry
+    GUI["WuWanGUI.py<br/>Input: layered system (E, nu, h), load,<br/>evaluation points (r) with per-point ON/OFF mask,<br/>noise / search settings<br/>Output: deflections, recovered moduli,<br/>optimized sensor layout"]:::entry
 
     subgraph CORE["src/ - C++ Forward and Inverse Core"]
         direction TB
@@ -213,6 +213,8 @@ Launching `WuWanGUI.py` opens the main menu, from which the user picks one of th
 
 On the **Forward Calculation** page, the user fills in the editable (white) cells of the layered system table — modulus, Poisson's ratio, and thickness for each of the 5 layers, plus the applied stress, load radius, and sensor offsets ($r$) for each evaluation point — then clicks **Compute!**.
 
+Each evaluation point also carries an **ON/OFF toggle** in the **Use** column. Points switched **OFF** (the row greys out) are skipped by the solver entirely — their deflection is reported as **0** — which is useful for probing how individual sensor positions contribute to the basin.
+
 ![Forward Calculation Input](demo_figure/gui_forward_input.png)
 
 ### 3. Output & Visualization
@@ -243,6 +245,8 @@ This example performs back-calculation (inversion) using the **Back Calculation*
 ### 1. Define the Deflection Bowl & Loading System
 
 On the **Back Calculation** page, the user enters the load (Stress = 0.95 MPa, Radius = 150 mm) and the measured deflection at each of the 10 evaluation points. Here the deflection basin is generated directly from a known set of **"true" moduli** ($E_{true} = [8000, 400, 300, 200, 100]$ MPa), with no measurement noise injected.
+
+Every evaluation point has an **ON/OFF toggle** in the **Use** column. Points switched **OFF** — a malfunctioning geophone, an implausible reading — are **excluded from the inversion exactly** (their residual and Jacobian rows are removed from the least-squares system, not merely down-weighted), so back-calculation runs cleanly on any subset of **5 to 10** points. At least 5 points must stay ON, since 5 layer moduli are being identified; the GUI enforces this before dispatching the solver.
 
 ![Deflection Bowl & Loading System](demo_figure/gui_backcalc_deflection.png)
 
@@ -286,6 +290,8 @@ In addition to the initial modulus guess, the user defines a **modulus search ra
 
 The user also sets the **load (stress) noise level** and, per sensor, a **radial position noise** (r ± mm) and **deflection noise** (± μm) — simulating realistic FWD measurement uncertainty.
 
+Rows belonging to points toggled **OFF** in the Deflection Bowl table are mirrored here automatically: the row greys out, its noise entries are locked and set to **0**, and the values are restored when the point is switched back ON — so the noise table always reflects exactly what enters the Monte Carlo sampling.
+
 ![Deflections & Loading Noise Setting](demo_figure/gui_mc_deflection_noise.png)
 
 ### 3. Run Monte Carlo & Results
@@ -325,6 +331,8 @@ As with the Back Calculation module, the user starts from a measured deflection 
 ### 2. Sensor Search Space & DE Settings
 
 The user sets how many sensors are **fixed** (kept at their original positions) vs. **free** to move, the allowable search range $[r_{min}, r_{max}]$, the minimum spacing between sensors, and the Differential Evolution (DE) solver settings (population size, iterations, tolerance, random seed).
+
+Sensor masking carries through here as well: sensors toggled **OFF** take no part in the optimization — they contribute nothing to the Fisher Information Matrix, occupy no dimension of the DE search, and reserve no minimum-gap spacing — and **Number of Fixed Sensors counts enabled sensors only**. Disabled sensors are reported with a greyed-out **Disabled** status in the result table and layout plots, keeping their entered position untouched.
 
 ![Sensor Search Space & DE Settings](demo_figure/gui_slo_search_settings.png)
 
@@ -380,7 +388,7 @@ WuWanGUI's **Preview** tab provides three additional diagnostic plots once the o
 
 ![Modulus Distribution Comparison](demo_figure/gui_slo_modulus_comparison.png)
 
-**Sensor Layout Comparison** — visualizes the initial (top) vs. optimized (bottom) sensor positions along the radial axis.
+**Sensor Layout Comparison** — visualizes the initial (top) vs. optimized (bottom) sensor positions along the radial axis. Sensors toggled OFF appear as greyed-out ✕ markers on the initial row only, since they take no part in the optimized layout.
 
 ![Sensor Layout Comparison](demo_figure/gui_slo_layout_comparison.png)
 
@@ -392,6 +400,7 @@ WuWanGUI's **Preview** tab provides three additional diagnostic plots once the o
 * **Analytical Gradients** — analytical derivatives for Jacobian calculations, outperforming finite-difference methods in stability and speed.
 * **Advanced Back-Calculation** — `Eigen` combined with high-speed C++ gradient providers, solving inverse problems in tens of milliseconds.
 * **Robust Error Modeling** — noise injection for thickness, deflection, load, and sensor positioning to simulate real-world measurement uncertainty.
+* **Selective Point Masking** — per-point ON/OFF toggles exclude individual sensors (a faulty geophone, an outlier reading) from the analysis **exactly**, consistently across forward calculation, back-calculation, Monte Carlo, and sensor optimization; any subset of 5–10 points is supported.
 * **Sensor Location Optimization** — robust, uncertainty-aware Differential Evolution search for the FWD sensor layout that maximizes the information content of the deflection basin.
 
 ---
@@ -461,6 +470,7 @@ For comprehensive guidance on using WuWan:
 - [x] **Deterministic Back-calculation** — fast inverse analysis for moduli estimation.
 - [x] **Monte Carlo Uncertainty Analysis** — triangular-distributed noise injection on thickness, load, sensor position, and deflection, with UR/RR risk-spread reporting per layer.
 - [x] **Sensor Location Optimization** — robust D-optimal sensor placement via Differential Evolution over a Sample Average Approximation of the Fisher Information Matrix. *This is a **preliminary release** of the module — the search heuristics and robustness criteria are still being refined.*
+- [x] **Selective Point Masking** — per-point ON/OFF exclusion of evaluation points, applied exactly (residual/Jacobian rows removed, FIM/DE dimensions reduced) and consistently across all four analysis modules, with a ≥ 5-point guard for the 5 unknown moduli.
 
 ---
 

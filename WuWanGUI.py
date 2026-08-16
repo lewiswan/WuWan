@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from tkintertable import TableCanvas, TableModel
 import matplotlib.ticker as mticker
 import matplotlib.patches as mpatches
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -13,6 +12,7 @@ import threading
 import multiprocessing
 from scipy import stats
 from tabulate import tabulate
+import tkinter.font as tkfont
 
 import ctypes
 try:
@@ -25,7 +25,12 @@ import WuWan_pavement_inverse
 import WuWan_pavement_montecarlo
 import WuWan_pavement_slo
 
-
+def _make_mono_font(size=12):
+    available = set(tkfont.families())
+    for name in ("Menlo", "SF Mono", "Monaco", "Consolas", "DejaVu Sans Mono", "Courier New"):
+        if name in available:
+            return tkfont.Font(family=name, size=size)
+    return tkfont.Font(family="Courier", size=size) 
 # FlatButton
 class FlatButton(tk.Label):
     def __init__(self, parent, text='', command=None,
@@ -159,7 +164,7 @@ class MainMenu:
     def open_forward_calculation(self):
         self.root.withdraw()
         self.forward_window = tk.Toplevel(self.root)
-        self.forward_window.geometry('820x540')
+        self.forward_window.geometry('740x620')
         self.forward_window.title('WuWan v0.3 - Forward Calculation')
         self.forward_window.configure(bg='#F5F2E8')
         self.is_profile_open = False
@@ -174,26 +179,53 @@ class MainMenu:
                    activebg="#C0392B", activefg="white",
                    relief=tk.FLAT, padx=14, pady=4).pack(side=tk.LEFT, padx=10, pady=8)
 
+        tk.Label(top_bar, text="◈  Forward Calculation Module",
+                 font=("Georgia", 12, "bold"), bg="#2C3E50", fg="white").pack(side=tk.LEFT, padx=15)
+
         self.profile_btn = FlatButton(top_bar, text="Show Profile Plot >>",
                                       command=self.toggle_profile_view,
                                       font=("Segoe UI", 9, "bold"),
                                       bg="#8B6F47", fg="white",
                                       activebg="#6F5736", activefg="white",
                                       relief=tk.FLAT, padx=14, pady=4)
-        self.profile_btn.pack(side=tk.LEFT, padx=5, pady=8)
+        self.profile_btn.pack(side=tk.RIGHT, padx=10, pady=8)
 
-        content_container = tk.Frame(self.forward_window, bg='#F5F2E8')
-        content_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_container = tk.Frame(self.forward_window, bg='#F5F2E8')
+        main_container.pack(fill=tk.BOTH, expand=True)
 
-        self.calc_frame = tk.Frame(content_container, width=820, bg='#FCFCFA',
-                                   highlightbackground='#D6D3C7', highlightthickness=1)
+        # --- Left sidebar (mirrors Back Calculation) ---
+        sidebar = tk.Frame(main_container, width=210, bg="#E8E4D8",
+                           highlightbackground="#BDB7A4", highlightthickness=1)
+        sidebar.pack(side=tk.LEFT, fill=tk.Y)
+        sidebar.pack_propagate(False)
+
+        # --- Card area + bottom output ---
+        self.calc_frame = tk.Frame(main_container, width=520, bg='#F5F2E8')
         self.calc_frame.pack_propagate(0)
         self.calc_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
 
-        self.table_app = TableApp(self.calc_frame)
-        self.table_app.parent_menu = self
+        output_container = tk.Frame(self.calc_frame, bg="#FCFCFA", height=110)
+        output_container.pack(side=tk.BOTTOM, fill=tk.X)
+        output_container.pack_propagate(False)
+        out_header = tk.Frame(output_container, bg="#2C3E50", height=22)
+        out_header.pack(side=tk.TOP, fill=tk.X)
+        out_header.pack_propagate(False)
+        tk.Label(out_header, text="  ▼ Output", font=("Segoe UI", 9, "bold"),
+                 bg="#2C3E50", fg="white", anchor="w").pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.fw_output_text = tk.Text(output_container, height=6, bg="#FCFCFA", fg="#1B2631",
+                                      font=("Consolas", 10), relief=tk.FLAT, borderwidth=0)
+        self.fw_output_text.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
 
-        self.plot_frame = tk.Frame(content_container, bg="white", width=800,
+        whiteboard = tk.Frame(self.calc_frame, bg='#F5F2E8')
+        whiteboard.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        self.table_app = ForwardPanel(whiteboard)
+
+        self._build_forward_sidebar(sidebar)
+        self.fw_show('layered_profile')
+
+        # --- Profile plot (hidden until toggled) ---
+        self.plot_frame = tk.Frame(main_container, bg="white", width=760,
                                    highlightbackground='#D6D3C7', highlightthickness=1)
         self.plot_frame.pack_propagate(0)
 
@@ -205,6 +237,81 @@ class MainMenu:
         self.forward_window.protocol(
             "WM_DELETE_WINDOW",
             lambda: self.return_to_main(self.forward_window))
+
+    def _build_forward_sidebar(self, parent):
+        tk.Label(parent, text="WuWan", font=("Georgia", 28, "bold"),
+                 bg="#E8E4D8", fg="#2C3E50", pady=8).pack(fill=tk.X)
+        tk.Label(parent, text="Forward Calculation", font=("Georgia", 14, "italic"),
+                 bg="#E8E4D8", fg="#5D6D7E", pady=2).pack(fill=tk.X)
+
+        self._sidebar_section(parent, "INPUT DATA", "#2C5282")
+        self._sidebar_btn(parent, "Ⅰ  Layered Profile & Loading", lambda: self.fw_show('layered_profile'), "#2C5282")
+        self._sidebar_btn(parent, "Ⅱ  Evaluation Points", lambda: self.fw_show('evaluation'), "#2C5282")
+
+        self._sidebar_section(parent, "COMPUTE", "#2D5F3F")
+        self._sidebar_btn(parent, "▶  Run Calculation", self.fw_run, "#2D5F3F")
+
+        self._sidebar_section(parent, "SAVE", "#34495E")
+        self._sidebar_btn(parent, "💾  Save Input/Output Data", self.fw_save_data, "#34495E")
+
+    def fw_show(self, name):
+        self.table_app.show(name)
+        self.forward_window.update_idletasks()
+
+    def fw_run(self):
+        errors = self.table_app.validate()
+        if errors:
+            messagebox.showerror("Invalid Input", "Please fix the following before computing:\n\n" +
+                                 "\n".join(f"• {e}" for e in errors))
+            self._fw_log("[ERROR] Calculation aborted:\n" + "\n".join("   - " + e for e in errors) + "\n", clear=True)
+            return
+        arr = self.table_app.build_arr()
+        self._fw_log("⏳  Computing...\n", clear=True)
+        self.forward_window.update_idletasks()
+        threading.Thread(target=self._fw_thread_task, args=(arr,), daemon=True).start()
+
+    def _fw_thread_task(self, arr):
+        # Runs off the Tk main thread -- must not touch any tk widget/Variable
+        # directly here (that's what made every click feel like it hung until
+        # the mouse moved); hand the result back via .after() instead.
+        try:
+            result = WuWan_pavement_forward.Calculation(arr, calc_grad=False)
+            u = [float(v) * 1000.0 for v in result.result_displacement]
+            self.forward_window.after(0, self._fw_finish_task, u)
+        except Exception as e:
+            self.forward_window.after(0, lambda err=e: self._fw_log(f"[ERROR] Calculation failed: {err}\n", clear=True))
+
+    def _fw_finish_task(self, u):
+        for i in range(10):
+            self.table_app.defl_vars[i].set(f'{u[i]:.1f}')
+        self._fw_log("[✓] Forward calculation complete.\n", clear=True)
+        self.fw_show('evaluation')
+        if self.is_profile_open:
+            self._draw_profile_plot()
+
+    def _fw_log(self, text, clear=False):
+        if clear:
+            self.fw_output_text.delete(1.0, tk.END)
+        self.fw_output_text.insert(tk.END, text)
+
+    def fw_save_data(self):
+        folder = filedialog.askdirectory(title="Select folder to save data")
+        if not folder:
+            return
+        try:
+            arr = self.table_app.build_arr()
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            csv_path = os.path.join(folder, f"forward_data_{ts}.csv")
+            log_path = os.path.join(folder, f"forward_data_{ts}.log")
+            pd.DataFrame(arr).to_csv(csv_path, index=False)
+            with open(log_path, 'w', encoding='utf-8') as f:
+                f.write("WuWan Forward Calculation Data\nSaved: " + ts + "\n\n=== Input/Output Array ===\n")
+                f.write(pd.DataFrame(arr).to_string() + "\n")
+            messagebox.showinfo("Saved", f"Data saved to:\n{csv_path}\n{log_path}")
+            self._fw_log(f"[✓] Data saved to: {folder}\n")
+        except Exception as e:
+            messagebox.showerror("Save Failed", f"Could not save data:\n{e}")
+            self._fw_log(f"[ERROR] Save failed: {e}\n")
 
     # Back Calculation — ACADEMIC LAYOUT
     def open_back_calculation(self):
@@ -263,6 +370,9 @@ class MainMenu:
                                       font=("Consolas", 9),
                                       relief=tk.FLAT, borderwidth=0)
         self.bc_output_text.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+
+        self._mono_font = _make_mono_font(size=14)      
+        self.bc_output_text.config(font=self._mono_font)
 
         # Top whiteboard
         self.bc_whiteboard = tk.Frame(right_area, bg='#F5F2E8')
@@ -412,6 +522,8 @@ class MainMenu:
                 errors.append(f"Stress noise too large: stress*(1-noise) = {stress*(1-snoise):g} <= 0.")
 
             for i in range(10):
+                if not forms.point_enabled.get(i, True):
+                    continue  # masked points are excluded from the calculation entirely
                 r = forms._f(forms.vars['deflections'].get(f'r_{i}'))
                 rn = forms._f(forms.vars['deflection_noise'].get(f'r_noise_{i}'))
                 d = forms._f(forms.vars['deflections'].get(f'defl_{i}'))
@@ -424,6 +536,11 @@ class MainMenu:
                     errors.append(f"Point {i+1}: deflection noise must be >= 0.")
                 if d - dn < 0:
                     errors.append(f"Point {i+1}: deflection - noise = {d-dn:g} < 0.")
+
+        n_on = sum(1 for i in range(10) if forms.point_enabled.get(i, True))
+        if n_on < 5:
+            errors.append(f"Only {n_on} evaluation points enabled: at least 5 are required "
+                          "to back-calculate 5 layer moduli.")
         return errors
 
     def _report_errors_dialog(self, errors, target_view=None):
@@ -607,22 +724,33 @@ class MainMenu:
             q1 = np.percentile(res, 25, axis=0)
             q3 = np.percentile(res, 75, axis=0)
 
-            z_95 = stats.norm.ppf(0.975)
-            z_75 = stats.norm.ppf(0.75)
-            uncertainty_val = (np.round(ci_upper, 2) - np.round(ci_lower, 2)) / np.round(q3 - q1, 2) - z_95 / z_75
+            z_95 = stats.norm.ppf(0.975)          # 1.960
+            z_75 = stats.norm.ppf(0.75)           # 0.6745
+            iqr = np.round(q3 - q1, 2)
+            ci_width = np.round(ci_upper, 2) - np.round(ci_lower, 2)
+            safe_iqr = np.where(iqr == 0, np.nan, iqr)   # guard degenerate (fixed) layers
+
+            robust_sigma = iqr / (2 * z_75)              # 2*z_75 = 1.349, IQR -> normal sigma
+            tail = ci_width / safe_iqr / (z_95 / z_75)   # normal ~ 1, >1.3 heavy/multi-modal
+
+            # layer trade-off: max |corr| with any other layer
+            C = np.corrcoef(res.T)
+            np.fill_diagonal(C, 0.0)
+            rho_max = np.nan_to_num(np.abs(C)).max(axis=1)
 
             full_df = pd.DataFrame({
-                'Layer':   [f'L{j+1}' for j in range(5)],
+                'Layer':     [f'L{j+1}' for j in range(5)],
                 'Thickness': arr_main[2:7, 3],
-                'Mean':    np.round(means, 2),
-                'Median':  np.round(medians, 2),
-                'Q1(25%)': np.round(q1, 2),
-                'Q3(75%)': np.round(q3, 2),
-                'IQR':     np.round(q3 - q1, 2),
-                'CI(2.5%)': np.round(ci_lower, 2),
+                'Mean':      np.round(means, 2),
+                'Median':    np.round(medians, 2),
+                'Q1(25%)':   np.round(q1, 2),
+                'Q3(75%)':   np.round(q3, 2),
+                'IQR':       iqr,
+                'CI(2.5%)':  np.round(ci_lower, 2),
                 'CI(97.5%)': np.round(ci_upper, 2),
-                'UR':      np.round(uncertainty_val, 4),
-                'RR (%)':  np.round(q3 - q1, 2) / medians * 100,
+                'rCV (%)':   np.round(robust_sigma / medians * 100, 2),
+                'tail':      np.round(tail, 2),
+                '|ρ|max':    np.round(rho_max, 2),
             })
             full_df.at[full_df.index[-1], 'Thickness'] = np.inf
 
@@ -636,26 +764,48 @@ class MainMenu:
             if v is not None:
                 v.set(f"{float(val):.2f}")
 
-        summary_str = "\n" + "=" * 80 + "\n"
-        summary_str += "           MONTE CARLO BACK CALCULATION RESULTS\n"
-        summary_str += "=" * 80 + "\n"
-        summary_str += "[UR] Tail Risk   : < 0.3 (Excellent) | 0.3-0.8 (Acceptable) | > 0.8 (Poor)\n"
-        summary_str += "[RR] Core Spread : < 20% (Excellent) | 20-50% (Acceptable)  | > 50% (Poor)\n\n"
+        def _table(cols):
+            return tabulate(full_df[cols], headers='keys', tablefmt='psql',
+                            showindex=False, numalign="right")
 
-        g1 = full_df[['Layer', 'Thickness', 'Mean', 'Median']]
-        summary_str += tabulate(g1, headers='keys', tablefmt='psql', showindex=False, numalign="right") + "\n\n"
+        blocks = [
+            ("CENTRAL ESTIMATE", ['Layer', 'Thickness', 'Mean', 'Median']),
+            ("DISPERSION",       ['Layer', 'Q1(25%)', 'Q3(75%)', 'IQR', 'rCV (%)']),
+            ("IDENTIFIABILITY",  ['Layer', 'CI(2.5%)', 'CI(97.5%)', 'tail', '|ρ|max']),
+        ]
+        rendered = [(t, _table(c)) for t, c in blocks]
 
-        g2 = full_df[['Layer', 'Q1(25%)', 'Q3(75%)', 'IQR']]
-        summary_str += tabulate(g2, headers='keys', tablefmt='psql', showindex=False, numalign="right") + "\n\n"
+        defs = [
+            "METRIC DEFINITIONS",
+            "  Mean, Median   sample mean / median of the MC posterior.",
+            "                 |Mean - Median| large  =>  skewed posterior.",
+            "  IQR  = Q3 - Q1                          robust spread [MPa].",
+            "  rCV  = (IQR / 1.349) / Median * 100     relative core spread [%];",
+            "                 1.349 = 2*z75, maps IQR to a normal-equivalent sigma.",
+            "  tail = CI_width / (2.906 * IQR)         tail risk (shape), unitless;",
+            "                 2.906 = 2*z95 / z75. ~1 normal, >1.3 heavy-tailed or",
+            "                 multi-modal (multi-start solutions split / boundary hit).",
+            "  |ρ|max = max_{j!=i} |corr(E_i, E_j)|    layer trade-off, unitless;",
+            "                 >0.9 => this modulus is traded against a neighbour",
+            "                 (E*h compensation). Marginal spread then understates",
+            "                 the true uncertainty -- rCV looks good but is not real.",
+        ]
 
-        g3 = full_df[['Layer', 'CI(2.5%)', 'CI(97.5%)', 'UR', 'RR (%)']]
-        summary_str += tabulate(g3, headers='keys', tablefmt='psql', showindex=False, numalign="right") + "\n"
-        summary_str += "=" * 80 + "\n"
+        width = max(len(ln) for _, body in rendered for ln in body.splitlines())
+        width = max(width, max(len(ln) for ln in defs), 64)
+        bar = "=" * width
+
+        out = ["", bar, "MONTE CARLO BACK-CALCULATION RESULTS".center(width), bar, ""]
+        for title, body in rendered:
+            out += [title, "-" * width, body, ""]
+        out += ["-" * width] + defs + [bar]
 
         self._write_log("[✓] Monte Carlo Back Calculation Finished!\n")
-        self.bc_output_text.insert(tk.END, summary_str)
-
+        self.bc_output_text.insert(tk.END, "\n".join(out) + "\n")
         self._render_mc_result(res, means, medians, ci_lower, ci_upper, q1, q3, full_df)
+
+
+
 
     def _render_mc_result(self, res, means, medians, ci_lower, ci_upper, q1, q3, summary_df):
         frame = self.bc_view_mc
@@ -845,6 +995,7 @@ class MainMenu:
         fig.suptitle('Distribution of Back-Calculated Elastic Modulus', fontsize=12, fontweight='bold', y=0.97, family='serif')
         axes = [fig.add_subplot(1, num_layers, j + 1) for j in range(num_layers)]
 
+        any_inset = False
         for j, ax in enumerate(axes):
             ax.set_facecolor('#FAF8F0')
             vp = ax.violinplot(res[:, j], positions=[1], showmeans=False, showmedians=False, showextrema=False, widths=0.75)
@@ -881,8 +1032,52 @@ class MainMenu:
             ax.set_xticks([])
             ax.grid(axis='y', linestyle='--', alpha=0.35)
             ax.tick_params(axis='y', labelsize=7)
-            pad = yr * 0.15
-            ax.set_ylim(ci_lower[j] - pad * 1.5, ci_upper[j] + pad * 1.5)
+
+            # --- long-tail handling: zoom the main axis on the IQR core, and add an
+            # inset showing the full CI range for context (mirrors the SLO distribution plot) ---
+            iqr_j = q3[j] - q1[j]
+            use_inset = (yr > 3 * iqr_j) if iqr_j > 0 else False
+            if use_inset:
+                pad_iqr = iqr_j * 0.8
+                y_display_low, y_display_high = q1[j] - pad_iqr, q3[j] + pad_iqr
+                data_min, data_max = np.min(res[:, j]), np.max(res[:, j])
+                data_span = (data_max - data_min) if (data_max - data_min) > 0 else 1.0
+                y_display_low = max(y_display_low, data_min - data_span * 0.04)
+                y_display_high = min(y_display_high, data_max + data_span * 0.04)
+                if y_display_high <= y_display_low:
+                    y_display_low, y_display_high = data_min - 5, data_max + 5
+                ax.set_ylim(y_display_low, y_display_high)
+            else:
+                pad = yr * 0.15
+                ax.set_ylim(ci_lower[j] - pad * 1.5, ci_upper[j] + pad * 1.5)
+
+            if use_inset:
+                any_inset = True
+                inset_ax = ax.inset_axes([0.56, 0.62, 0.40, 0.33])
+                inset_ax.set_facecolor('#FAFAFA')
+                full_pad = yr * 0.05 if yr > 0 else 1.0
+                vp_in = inset_ax.violinplot(res[:, j], positions=[1], showmeans=False,
+                                             showmedians=False, showextrema=False, widths=0.6)
+                inset_vb = None
+                for pc in vp_in['bodies']:
+                    pc.set_facecolor(layer_color)
+                    pc.set_edgecolor(layer_color)
+                    pc.set_alpha(0.35)
+                    pc.set_linewidth(0.8)
+                    inset_vb = pc
+                if inset_vb is not None:
+                    clip_violin(inset_vb, q1[j], q3[j], layer_color, 0.3, inset_ax)
+                inset_ax.vlines(1, ci_lower[j], ci_upper[j], color='#333', lw=1.1, zorder=5)
+                inset_ax.axhspan(y_display_low, y_display_high, color='#FFD700', alpha=0.15, zorder=1)
+                inset_ax.axhline(y_display_low, color='#DAA520', ls='--', lw=0.7, alpha=0.6, zorder=4)
+                inset_ax.axhline(y_display_high, color='#DAA520', ls='--', lw=0.7, alpha=0.6, zorder=4)
+                inset_ax.set_ylim(ci_lower[j] - full_pad, ci_upper[j] + full_pad)
+                inset_ax.set_xlim(0.3, 1.7)
+                inset_ax.set_xticks([])
+                inset_ax.set_yticks([])
+                for spine in inset_ax.spines.values():
+                    spine.set_edgecolor('lightgray')
+                    spine.set_linewidth(0.5)
 
         from matplotlib.lines import Line2D
         legend_elements = [
@@ -891,8 +1086,12 @@ class MainMenu:
             Line2D([0], [0], color='#A3C98E', lw=2.0, label='Mean'),
             Line2D([0], [0], color='#AE3019', lw=2.0, label='Median'),
         ]
-        fig.legend(handles=legend_elements, loc='lower center', ncol=4, fontsize=8, frameon=True, framealpha=0.9,
-                   bbox_to_anchor=(0.5, -0.01), edgecolor='lightgray', handlelength=2.5)
+        if any_inset:
+            legend_elements.append(
+                mpatches.Patch(facecolor='#FFD700', alpha=0.3, edgecolor='#DAA520', label='Inset range'))
+        fig.legend(handles=legend_elements, loc='lower center', ncol=len(legend_elements), fontsize=8,
+                   frameon=True, framealpha=0.9, bbox_to_anchor=(0.5, -0.01), edgecolor='lightgray',
+                   handlelength=2.5)
         fig.tight_layout(rect=[0, 0.06, 1, 0.95])
 
         canvas = FigureCanvasTkAgg(fig, master=parent)
@@ -912,39 +1111,32 @@ class MainMenu:
     # ------- Forward profile helpers -------
     def toggle_profile_view(self):
         if not self.is_profile_open:
-            self._ensure_deflection_computed()
-            self._draw_profile_plot()
-            self.forward_window.geometry('1250x550')
+            self.forward_window.geometry('1500x620')
             self.plot_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
             self.profile_btn.config(text="<< Hide Profile Plot")
-            self.is_profile_open = True
+            self.is_profile_open = True  # set before fw_run(): _fw_finish_task() checks this flag
+            if self._has_deflection_data():
+                self._draw_profile_plot()
+            else:
+                self.fw_run()  # async; _fw_finish_task() draws the plot once it completes
         else:
             self.plot_frame.pack_forget()
-            self.forward_window.geometry('850x550')
+            self.forward_window.geometry('740x620')
             self.profile_btn.config(text="Show Profile Plot >>")
             self.is_profile_open = False
 
-    def _ensure_deflection_computed(self):
-        model_data = self.table_app.model.data
-        has_data = False
-        for r in range(1, 11):
-            v = str(model_data.get(r, {}).get('Deflection [μm]', ''))
-            if v not in ('', 'nan', 'None', '0', '0.0'):
-                has_data = True
-                break
-        if not has_data:
-            self.table_app.get_data()
+    def _has_deflection_data(self):
+        return any(v.get().strip() not in ('', 'nan', 'None')
+                   for v in self.table_app.defl_vars.values())
 
     def _draw_profile_plot(self):
         for widget in self.plot_frame.winfo_children():
             widget.destroy()
-        model_data = self.table_app.model.data
         r_values, defl_values = [], []
-        for r in range(1, 11):
-            row_data = model_data.get(r, {})
+        for i in range(10):
             try:
-                r_val = float(str(row_data.get('r [mm]', '')))
-                d_val = float(str(row_data.get('Deflection [μm]', '')))
+                r_val = float(self.table_app.r_vars[i].get())
+                d_val = float(self.table_app.defl_vars[i].get())
                 r_values.append(r_val)
                 defl_values.append(d_val)
             except (ValueError, TypeError):
@@ -1191,14 +1383,16 @@ class MainMenu:
         maxiter = f(sp.get('maxiter'))
         tol = f(sp.get('tol'))
 
-        if not (1 <= num_fixed <= 9):
-            errors.append(f"Number of Fixed Sensors must be between 1 and 9 (got {num_fixed:g}).")
+        n_on = sum(1 for i in range(10) if self.slo_forms.point_enabled.get(i, True))
+        if not (1 <= num_fixed <= n_on - 1):
+            errors.append(f"Number of Fixed Sensors must be between 1 and {n_on - 1} "
+                          f"({n_on} points enabled; masked points are not counted, got {num_fixed:g}).")
         if r_min <= 0 or r_max <= r_min:
             errors.append(f"Search range invalid: r_min={r_min:g}, r_max={r_max:g} (need 0 < r_min < r_max).")
         if min_gap <= 0:
             errors.append(f"Min Sensor Gap must be > 0 (got {min_gap:g}).")
-        if 1 <= num_fixed <= 9:
-            k_free = 10 - int(num_fixed)
+        if 1 <= num_fixed <= n_on - 1:
+            k_free = n_on - int(num_fixed)
             if (r_max - r_min - (k_free - 1) * min_gap) <= 0:
                 errors.append("Search range too small for the number of free sensors and minimum gap; "
                               "widen [r_min, r_max] or reduce Min Sensor Gap.")
@@ -1284,7 +1478,8 @@ class MainMenu:
             self.slo_window.after(0, self._update_slo_progress, step, maxiter, pct)
 
         try:
-            res = WuWan_pavement_slo.optimize_sensor_layout(arr_main, arr_noise, callback=progress_cb, **params)
+            res = WuWan_pavement_slo.optimize_sensor_layout(
+                arr_main, arr_noise, callback=progress_cb, true_moduli=true_modulus_ref, **params)
             res.true_modulus_ref = true_modulus_ref  # optional known values; None per-layer if unknown
 
             self.slo_window.after(0, self._update_slo_progress_text,
@@ -1410,9 +1605,15 @@ class MainMenu:
             tree_p.column(c, width=w, anchor='center')
         tree_p.tag_configure('odd', background='#FAF8F0')
         tree_p.tag_configure('even', background='#FCFCFA')
+        tree_p.tag_configure('disabled', background='#EFEBDC', foreground='#8A8473')
+        fixed_set = set(np.asarray(res.fixed_idx).tolist())
         for i in range(10):
-            status = 'Fixed' if i < res.num_fixed else 'Free'
             ip, fp = res.initial_pos[i], res.final_pos[i]
+            if not res.active_mask[i]:
+                tree_p.insert('', tk.END, values=(f"P{i+1}", 'Disabled', f"{ip:.1f}", '—', '—'),
+                             tags=('disabled',))
+                continue
+            status = 'Fixed' if i in fixed_set else 'Free'
             tree_p.insert('', tk.END, values=(f"P{i+1}", status, f"{ip:.1f}", f"{fp:.1f}", f"{fp - ip:+.1f}"),
                          tags=('odd' if i % 2 == 0 else 'even',))
         tree_p.pack(fill=tk.X)
@@ -1531,19 +1732,27 @@ class MainMenu:
         ax = fig.add_subplot(111)
         ax.set_facecolor('#FAF8F0')
 
-        color_before, color_after = '#4A5F7E', '#D4652A'
+        color_before, color_after, color_off = '#4A5F7E', '#D4652A', '#8A8473'
         ip, fp = res.initial_pos, res.final_pos
+        act = np.asarray(res.active_mask, dtype=bool)
 
-        ax.scatter(ip, np.ones_like(ip), color=color_before, s=60, zorder=5,
+        ax.scatter(ip[act], np.ones(act.sum()), color=color_before, s=60, zorder=5,
                   edgecolor='white', linewidth=1.0)
-        ax.scatter(fp, -np.ones_like(fp), color=color_after, s=60, zorder=5,
+        ax.scatter(fp[act], -np.ones(act.sum()), color=color_after, s=60, zorder=5,
                   edgecolor='white', linewidth=1.0)
+        if (~act).any():  # disabled sensors: greyed out, initial row only
+            ax.scatter(ip[~act], np.ones((~act).sum()), color=color_off, s=60, zorder=4,
+                      marker='x', linewidth=1.6)
 
         for k in range(len(ip)):
-            ax.annotate(f'P{k+1}', xy=(ip[k], 1.0), xytext=(0, 6), textcoords='offset points',
-                       ha='center', va='bottom', fontsize=7.5, color=color_before, family='serif')
-            ax.annotate(f'P{k+1}', xy=(fp[k], -1.0), xytext=(0, -6), textcoords='offset points',
-                       ha='center', va='top', fontsize=7.5, color=color_after, family='serif')
+            if act[k]:
+                ax.annotate(f'P{k+1}', xy=(ip[k], 1.0), xytext=(0, 6), textcoords='offset points',
+                           ha='center', va='bottom', fontsize=7.5, color=color_before, family='serif')
+                ax.annotate(f'P{k+1}', xy=(fp[k], -1.0), xytext=(0, -6), textcoords='offset points',
+                           ha='center', va='top', fontsize=7.5, color=color_after, family='serif')
+            else:
+                ax.annotate(f'P{k+1}', xy=(ip[k], 1.0), xytext=(0, 6), textcoords='offset points',
+                           ha='center', va='bottom', fontsize=7.5, color=color_off, family='serif')
 
         ax.axhline(0, color='#333333', lw=1.2, zorder=2)
         ax.set_ylim(-1.6, 1.6)
@@ -1562,6 +1771,9 @@ class MainMenu:
             Line2D([0], [0], color=color_before, lw=2.2, marker='o', label='Initial layout'),
             Line2D([0], [0], color=color_after, lw=2.2, marker='o', label='Optimized layout'),
         ]
+        if (~act).any():
+            legend_elements.append(Line2D([0], [0], color=color_off, lw=0, marker='x',
+                                          markersize=7, label='Disabled'))
         ax.legend(handles=legend_elements, loc='upper right', fontsize=8.5, frameon=True,
                  framealpha=0.9, edgecolor='lightgray')
         ax.set_title('Sensor Layout Comparison — Initial (top) vs Optimized (bottom)',
@@ -1672,17 +1884,21 @@ class MainMenu:
             margin = (xr - xl) * 0.05
             ax.hlines(y_val, xl + margin, xr - margin, color=color, linestyle=ls, lw=lw, zorder=6)
 
-        # --- Figure proportions ---------------------------------------------------
-        fig_w = max(9.5, 2.35 * num_layers + 1.4)
-        fig_h = fig_w / 1.5
-        fig = Figure(figsize=(fig_w, fig_h), dpi=100)
+        # --- Figure proportions -----------------------------------------------
+        # Kept in the same size range as the other SLO preview charts (convergence,
+        # layout) so the figure — and the NavigationToolbar2Tk save/zoom controls
+        # packed below it — always fits inside the fixed-size SLO window instead
+        # of being pushed off-screen.
+        fig_w = min(max(7.8, 1.55 * num_layers + 1.0), 9.4)
+        fig_h = 4.6
+        fig = Figure(figsize=(fig_w, fig_h), dpi=95)
         fig.patch.set_facecolor('#FCFCFA')
         fig.suptitle('Distribution of Back-Calculated Elastic Modulus  '
                     '(Initial vs Optimized Layout)',
                     fontsize=13, fontweight='bold', y=0.955, family='serif')
         axes = [fig.add_subplot(1, num_layers, j + 1) for j in range(num_layers)]
 
-        fig.subplots_adjust(left=0.055, right=0.95, top=0.86, bottom=0.165, wspace=0.92)
+        fig.subplots_adjust(left=0.07, right=0.95, top=0.85, bottom=0.19, wspace=0.55)
 
         pos, vw, w_offset = 1.0, 1.0, 0.04   
         xlim = (0.40, 1.60)                  
@@ -1876,8 +2092,11 @@ class InputFormsManager:
             'slo_settings':     {}, 'true_modulus':     {},
         }
         self.modules = {}
+        self.point_enabled = {i: True for i in range(10)}  # point i (0-based) <-> evaluation point i+1
+        self.mask_buttons = {}
+        self._noise_backup = {}  # var_name -> value stashed while a point is OFF, restored on re-enable
         self._build_layered_profile()
-        self._build_deflections()       
+        self._build_deflections()
         self._build_layer_noise()
         #self._build_loading_noise()
         #self._build_deflection_noise()
@@ -2029,7 +2248,9 @@ class InputFormsManager:
             "Ⅰ  Deflection Bowl & Loading System",
             "Here, the user inputs:\n"
             "a list of FWD sensor offsets from the load center,\n"
-            "peak deflections, peak loading stress, and loading radius.\n",
+            "peak deflections, peak loading stress, and loading radius.\n"
+            "Use: toggle a point ON/OFF. OFF points are excluded from the "
+            "back-calculation (at least 5 must stay ON).",
             self.COLOR_INPUT
         )
 
@@ -2053,7 +2274,7 @@ class InputFormsManager:
         # --- Deflection table ---
         table = tk.Frame(body, bg=self.COLOR_CARD_BG)
         table.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        for c, h in enumerate(['Point', 'r [mm]', 'Deflection [μm]']):
+        for c, h in enumerate(['Point', 'r [mm]', 'Deflection [μm]', 'Use']):
             self._col_header(table, h, c)
         r_def = ['0', '100', '200', '300', '450', '600', '900', '1200', '1500', '1800']
         if self.default_profile == 'slo':
@@ -2061,19 +2282,94 @@ class InputFormsManager:
         else:
             d_def = ['744.3', '675.0', '516.3', '399.6', '303.1', '249.0', '186.1', '148.2', '122.0', '102.9']
         store = {}
+        self.defl_row_widgets = {}
         for i in range(10):
             r = i + 1
-            self._badge(table, f'P{i+1}').grid(row=r, column=0, padx=4, pady=1)
+            badge = self._badge(table, f'P{i+1}')
+            badge.grid(row=r, column=0, padx=4, pady=1)
             vr = tk.StringVar(value=r_def[i])
             store[f'r_{i}'] = vr
-            self._entry(table, vr).grid(row=r, column=1, padx=4, pady=1, sticky='ew')
+            r_entry = self._entry(table, vr)
+            r_entry.grid(row=r, column=1, padx=4, pady=1, sticky='ew')
             vd = tk.StringVar(value=d_def[i])
             store[f'defl_{i}'] = vd
-            self._entry(table, vd).grid(row=r, column=2, padx=4, pady=1, sticky='ew')
+            defl_entry = self._entry(table, vd)
+            defl_entry.grid(row=r, column=2, padx=4, pady=1, sticky='ew')
+            btn = FlatButton(table, text='● ON', command=lambda i=i: self._toggle_point(i),
+                              font=("Segoe UI", 11, "bold"), bg='#2D5F3F', fg='white',
+                              activebg='#1E4029', activefg='white', relief=tk.FLAT, width=6)
+            btn.grid(row=r, column=3, padx=4, pady=1)
+            self.mask_buttons[i] = btn
+            self.defl_row_widgets[i] = {'badge': badge, 'r_entry': r_entry, 'defl_entry': defl_entry}
         for c in range(3):
             table.columnconfigure(c, weight=1)
         self.vars['deflections'] = store
         self.modules['deflections'] = outer
+
+    def _toggle_point(self, i):
+        # Feeds build_arr_main() col 4 (0=use, 1=excluded); OFF rows are also
+        # zeroed/locked in the noise table via the two _set_*_row_state calls.
+        self.point_enabled[i] = not self.point_enabled[i]
+        btn = self.mask_buttons[i]
+        if self.point_enabled[i]:
+            btn._bg, btn._activebg, text = '#2D5F3F', '#1E4029', '● ON'
+        else:
+            btn._bg, btn._activebg, text = '#6B7280', '#4A5568', '○ OFF'
+        btn.config(text=text)
+        btn._apply_state()
+        self._set_defl_row_state(i, self.point_enabled[i])
+        self._set_noise_row_state(i, self.point_enabled[i])
+
+    def _set_defl_row_state(self, i, enabled):
+        """Mirror a point's enabled/disabled state onto its row in the Deflection
+        Bowl & Loading System table (badge colour + r/deflection entries readonly).
+        UI-only, matches the existing readonly styling used elsewhere in this class."""
+        widgets = getattr(self, 'defl_row_widgets', {}).get(i)
+        if not widgets:
+            return
+        badge = widgets['badge']
+        if enabled:
+            badge.config(bg='#4A5568', fg='#F7F5EE')
+        else:
+            badge.config(bg=self.COLOR_READONLY, fg='#8A8473')
+        for key in ('r_entry', 'defl_entry'):
+            entry = widgets[key]
+            if enabled:
+                entry.config(state='normal', bg=self.COLOR_ENTRY_BG, fg=self.COLOR_TEXT)
+            else:
+                entry.config(state='readonly', readonlybackground=self.COLOR_READONLY,
+                              disabledforeground='#8A8473', fg='#5D5747')
+
+    def _set_noise_row_state(self, i, enabled):
+        """Mirror a point's enabled/disabled state onto its row in the Noise
+        Setting table (badge colour + r/d noise entries readonly, zeroed while
+        OFF so a stale noise value can't be mistaken for a live one). UI-only,
+        matches the existing readonly styling used elsewhere in this class."""
+        widgets = getattr(self, 'noise_row_widgets', {}).get(i)
+        if not widgets:
+            return
+        badge = widgets['badge']
+        if enabled:
+            badge.config(bg='#8B6F47', fg='#F7F5EE')
+        else:
+            badge.config(bg=self.COLOR_READONLY, fg='#8A8473')
+        noise_vars = self.vars.get('deflection_noise', {})
+        for key, var_name in (('r_noise_entry', f'r_noise_{i}'), ('d_noise_entry', f'd_noise_{i}')):
+            if key == 'r_noise_entry' and i == 0:
+                continue  # P1's r noise is always readonly/zero regardless of toggle
+            entry = widgets[key]
+            var = noise_vars.get(var_name)
+            if enabled:
+                entry.config(state='normal', bg=self.COLOR_ENTRY_BG, fg=self.COLOR_TEXT)
+                backup = self._noise_backup.pop(var_name, None)
+                if var is not None and backup is not None:
+                    var.set(backup)
+            else:
+                entry.config(state='readonly', readonlybackground=self.COLOR_READONLY,
+                              disabledforeground='#8A8473', fg='#5D5747')
+                if var is not None:
+                    self._noise_backup.setdefault(var_name, var.get())
+                    var.set('0')
 
     def _build_layer_noise(self):
         outer, body = self._card(
@@ -2193,38 +2489,45 @@ class InputFormsManager:
             self._col_header(table, h, c)
             
         defl_store = {}
+        self.noise_row_widgets = {}
         for i in range(10):
             r = i + 1
-            self._badge(table, f'P{i+1}', bg='#8B6F47').grid(row=r, column=0, padx=3, pady=1)
-            # r 
-            # r noise 
+            badge = self._badge(table, f'P{i+1}', bg='#8B6F47')
+            badge.grid(row=r, column=0, padx=3, pady=1)
+            # r
+            # r noise
             if i == 0:
                 vr = tk.StringVar(value='0')
                 defl_store[f'r_noise_{i}'] = vr
-                self._entry(table, vr, width=9, readonly=True).grid(row=r, column=2, padx=3, pady=1, sticky='ew')
+                r_noise_entry = self._entry(table, vr, width=9, readonly=True)
+                r_noise_entry.grid(row=r, column=2, padx=3, pady=1, sticky='ew')
             else:
                 vr = tk.StringVar(value='10')
                 defl_store[f'r_noise_{i}'] = vr
-                self._entry(table, vr, width=9).grid(row=r, column=2, padx=3, pady=1, sticky='ew')
+                r_noise_entry = self._entry(table, vr, width=9)
+                r_noise_entry.grid(row=r, column=2, padx=3, pady=1, sticky='ew')
             self._entry(table, dfl.get(f'r_{i}'), width=9, readonly=True).grid(row=r, column=1, padx=3, pady=1, sticky='ew')
-            
+
             self._entry(table, dfl.get(f'defl_{i}'), width=9, readonly=True).grid(row=r, column=3, padx=3, pady=1, sticky='ew')
             vd = tk.StringVar(value='1')
             defl_store[f'd_noise_{i}'] = vd
-            self._entry(table, vd, width=9).grid(row=r, column=4, padx=3, pady=1, sticky='ew')
-            
+            d_noise_entry = self._entry(table, vd, width=9)
+            d_noise_entry.grid(row=r, column=4, padx=3, pady=1, sticky='ew')
+            self.noise_row_widgets[i] = {'badge': badge, 'r_noise_entry': r_noise_entry, 'd_noise_entry': d_noise_entry}
+
         for c in range(5):
             table.columnconfigure(c, weight=1)
         self.vars['deflection_noise'] = defl_store
-        
+
         self.modules['defl_load_noise'] = outer
 
     def _build_slo_settings(self):
         outer, body = self._card(
             "Ⅲ  Sensor Search Space & DE Settings",
-            "Number of Fixed Sensors: how many of the FIRST evaluation points (by Point order in "
-            "Deflection Bowl & Loading System) are held fixed near the load; the remaining sensors are "
-            "free and re-optimized.\n"
+            "Number of Fixed Sensors: how many of the FIRST ENABLED evaluation points (by Point order "
+            "in Deflection Bowl & Loading System; masked/OFF points are not counted) are held fixed "
+            "near the load; the remaining enabled sensors are free and re-optimized. Masked sensors "
+            "take no part in the search and keep their entered position.\n"
             "Search Range r_min / r_max [mm]: lower/upper bound for the free sensor positions.\n"
             "Min Sensor Gap [mm]: minimum spacing enforced between adjacent free sensors.\n"
             "SAA Samples: number of log-uniform modulus draws (taken from the Modulus Prior "
@@ -2243,10 +2546,10 @@ class InputFormsManager:
              ('Min Sensor Gap [mm]',            'min_gap',   '100')],
             [('Search Range Lower r_min [mm]', 'r_min',     '300'),
              ('Search Range Upper r_max [mm]', 'r_max',     '3000')],
-            [('SAA Samples [-]',               'n_saa',     '32'),
+            [('SAA Samples [-]',               'n_saa',     '128'),
              ('DE Population Multiplier [-]',  'np_mult',   '10')],
-            [('DE Max Iterations [-]',         'maxiter',   '200'),
-             ('DE Tolerance [-]',              'tol',       '1e-5'),
+            [('DE Max Iterations [-]',         'maxiter',   '50'),
+             ('DE Tolerance [-]',              'tol',       '1e-4'),
              ('Random Seed [-]',               'seed',      '42')],
         ]
         n_cols = 3
@@ -2404,6 +2707,7 @@ class InputFormsManager:
         arr[10, 1] = self._f(self.vars['loading'].get('stress'))
         arr[10, 3] = self._f(self.vars['loading'].get('radius'))
         for i in range(10):
+            arr[i + 1, 4] = 0.0 if self.point_enabled.get(i, True) else 1.0  # 0=use, 1=excluded
             arr[i + 1, 5] = i + 1
             arr[i + 1, 6] = self._f(self.vars['deflections'].get(f'r_{i}'))
             arr[i + 1, 7] = self._f(self.vars['deflections'].get(f'defl_{i}'))
@@ -2428,260 +2732,268 @@ class InputFormsManager:
         return np.ascontiguousarray(arr)
 
 
-# Forward TableApp
-class TableApp:
-    def __init__(self, root):
-        self.root = root
-        self.frame = tk.Frame(root, bg='#FCFCFA')
-        self.frame.pack(fill=tk.BOTH, expand=True)
+# Forward Calculation panel -- modern card layout, mirrors InputFormsManager's style
+class ForwardPanel:
+    COLOR_INPUT     = '#2C5282'
+    COLOR_RESULT    = '#8B3A62'
+    COLOR_TEXT      = '#1B2631'
+    COLOR_MUTED     = '#6B7280'
+    COLOR_BORDER    = '#D6D3C7'
+    COLOR_CARD_BG   = '#FCFCFA'
+    COLOR_PAGE_BG   = '#F5F2E8'
+    COLOR_HEADER_BG = '#EFEBDC'
+    COLOR_ENTRY_BG  = '#FFFFFF'
+    COLOR_READONLY  = '#EFEBDC'
+    COLOR_RESULT_BG = '#F5E6EC'
 
-        self.model = TableModel()
-        self.table = TableCanvas(self.frame, model=self.model, rowheight=30,
-                                 grid_color="black", linewidth=2.5,
-                                 rowselectedcolor="light blue",
-                                 cellbackgr="#CCCCCC")
-        self.table.show()
-        self.table.tablecolheader.grid_forget()
-        self.table.tablerowheader.grid_forget()
+    def __init__(self, container):
+        self.container = container
+        self.modules = {}
+        self.point_enabled = {i: True for i in range(10)}  # point i (0-based) <-> evaluation point i+1
+        self.mask_buttons = {}
+        self.modulus_vars, self.poisson_vars, self.thickness_vars = {}, {}, {}
+        self.r_vars, self.defl_vars = {}, {}
+        self.stress_var = tk.StringVar(value='0.95')
+        self.radius_var = tk.StringVar(value='150')
 
-        original_drawText = self.table.drawText
+        self._build_layered_profile()
+        self._build_evaluation()
 
-        def custom_drawText(row, col, celltxt, fgcolor=None, align=None):
-            col_name = self.model.columnNames[col]
+    def hide_all(self):
+        for f in self.modules.values():
+            f.pack_forget()
 
-            if col_name in ['r [mm]', 'Deflection [μm]']:
-                align = 'center'
-                
-            elif col_name in ['Layer', 'Modulus [MPa]', 'Poisson [-]', 'Thickness [mm]']:
-                
-                if row == 10:
-                    align = 'e'  
-                
-                elif col_name in ['Modulus [MPa]', 'Poisson [-]', 'Thickness [mm]']:
-                    align = 'center'
-                    
-            original_drawText(row, col, celltxt, fgcolor, align)
+    def show(self, name):
+        self.hide_all()
+        if name in self.modules:
+            self.modules[name].pack(fill=tk.BOTH, expand=True)
 
-        self.table.drawText = custom_drawText
+    # ---- style helpers (mirrors InputFormsManager's card language) ----
+    def _card(self, title, subtitle, accent):
+        outer = tk.Frame(self.container, bg=self.COLOR_PAGE_BG)
+        inner = tk.Frame(outer, bg=self.COLOR_CARD_BG, highlightbackground=self.COLOR_BORDER, highlightthickness=1)
+        inner.pack(fill=tk.BOTH, expand=True, padx=12, pady=8)
+        tk.Frame(inner, bg=accent, height=3).pack(side=tk.TOP, fill=tk.X)
+        title_frame = tk.Frame(inner, bg=self.COLOR_CARD_BG)
+        title_frame.pack(side=tk.TOP, fill=tk.X, padx=18, pady=(10, 2))
+        tk.Label(title_frame, text=title, font=("Georgia", 16, "bold"),
+                 bg=self.COLOR_CARD_BG, fg=accent).pack(side=tk.LEFT, anchor='w')
+        if subtitle:
+            info_icon = tk.Label(title_frame, text=' ⓘ', font=("Segoe UI", 13, "bold"),
+                                  bg=self.COLOR_CARD_BG, fg=accent, cursor='hand2')
+            info_icon.pack(side=tk.LEFT, anchor='w', padx=(8, 0))
+            ToolTip(info_icon, subtitle)
+        tk.Frame(inner, bg=self.COLOR_BORDER, height=1).pack(side=tk.TOP, fill=tk.X, padx=18, pady=(6, 6))
+        body = tk.Frame(inner, bg=self.COLOR_CARD_BG)
+        body.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=18, pady=(0, 10))
+        return outer, body
 
-        self.load_data()
-        self.adjust_column_widths()
-        self.set_cell_colors()
-        self.custom_draw_merged_header()
+    def _entry(self, parent, var, width=12, result=False):
+        bg = self.COLOR_RESULT_BG if result else self.COLOR_ENTRY_BG
+        e = tk.Entry(parent, textvariable=var, width=width, font=('Consolas', 13), relief='flat',
+                     bg=bg, fg=self.COLOR_TEXT, justify='center',
+                     highlightthickness=1, highlightbackground='#C8C2B0',
+                     highlightcolor=self.COLOR_INPUT, insertbackground=self.COLOR_TEXT)
+        if result:
+            e.config(state='readonly', readonlybackground=self.COLOR_RESULT_BG,
+                     disabledforeground='#7A3B54', fg='#7A3B54')
+        return e
 
-        button_frame = tk.Frame(root, bg='#FCFCFA')
-        button_frame.pack(pady=10)
-        FlatButton(button_frame, text="Compute!", command=self.get_data,
-                   font=("Segoe UI", 10, "bold"), bg="#2C5282", fg="white",
-                   activebg="#1A365D", activefg="white",
-                   relief=tk.FLAT, padx=20, pady=5).pack(side=tk.LEFT, padx=5)
-        FlatButton(button_frame, text="Save Data", command=self.save_data,
-                   font=("Segoe UI", 10, "bold"), bg="#2D5F3F", fg="white",
-                   activebg="#1E4029", activefg="white",
-                   relief=tk.FLAT, padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+    def _badge(self, parent, text, bg=None):
+        return tk.Label(parent, text=text, font=("Segoe UI", 13, "bold"),
+                         bg=bg or '#4A5568', fg='#F7F5EE', padx=8, pady=2)
 
-        legend = tk.Frame(root, bg='#FCFCFA')
-        legend.pack(pady=(0, 4))
-        for color, label in [('#FFFFFF', 'Editable Input'), ('#CCCCCC', 'Fixed Label'), ('#D6AFB9', 'Calculation Result')]:
-            sw = tk.Frame(legend, bg=color, width=14, height=14,
-                          highlightbackground='#888888', highlightthickness=1)
-            sw.pack_propagate(False)
-            sw.pack(side=tk.LEFT, padx=(8, 2))
-            tk.Label(legend, text=label, font=("Segoe UI", 9), bg='#FCFCFA').pack(side=tk.LEFT, padx=(0, 8))
-        self.result_text = tk.Text(root, height=3, width=200, bg='#F5F2E8',
-                                   relief=tk.FLAT, font=("Consolas", 10))
-        self.result_text.pack(pady=10, padx=10)
+    def _col_header(self, parent, text, col):
+        tk.Label(parent, text=text, font=("Segoe UI", 13, "bold"), bg=self.COLOR_HEADER_BG,
+                 fg=self.COLOR_TEXT, anchor='center', pady=4).grid(
+            row=0, column=col, padx=1, pady=(0, 2), sticky='nsew')
 
-    def load_data(self):
-        data = {
-            'Layer':           ['Layered System', 'layer #', '1', '2', '3', '4', '5', '', '', '', 'Stress[MPa]='],
-            'Modulus [MPa]':   ['Layered System', 'Modulus [MPa]', '8000', '400', '300', '200', '100', '', '', '', '0.95'],
-            'Poisson [-]':     ['Layered System', 'Poisson [-]', '0.30', '0.35', '0.35', '0.40', '0.40', '', '', '', 'Radius[mm]='],
-            'Thickness [mm]':  ['Layered System', 'Thickness [mm]', '150', '240', '300', '500', 'semi-inf', '', '', '', '150'],
-            '':                ['', '', '', '', '', '', '', '', '', '', ''],
-            'Evaluation point':['Evaluation point #', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
-            'r [mm]':          ['r [mm]', '0', '100', '200', '300', '450', '600', '900', '1200', '1500', '1800'],
-            'Deflection [μm]': ['Deflection [μm]', '', '', '', '', '', '', '', '', '', ''],
-        }
-        df = pd.DataFrame(data)
-        self.model.data = {}
-        self.model.columnNames = []
-        self.model.reclist = []
-        self.model.importDict(df.to_dict(orient='index'))
-        self.table.redraw()
+    def _disabled_box(self, parent, text='—'):
+        return tk.Label(parent, text=text, font=('Consolas', 13, 'italic'), bg=self.COLOR_HEADER_BG,
+                         fg='#8A8473', relief='flat', pady=3)
 
-    def custom_draw_merged_header(self):
-        merged = ['Layer', 'Modulus [MPa]', 'Poisson [-]', 'Thickness [mm]']
-        total = sum(self.model.columnwidths.get(c, 100) for c in merged)
-        if not hasattr(self, 'merged_label'):
-            self.merged_label = tk.Label(self.frame, text="Layered System",
-                font=("Arial", 10, "bold"), bg='#CCCCCC', relief='solid', borderwidth=1)
-            self.merged_label.place(x=4, y=4, width=total, height=30)
-        if not hasattr(self, 'merged_label_2'):
-            self.merged_label_2 = tk.Label(self.frame, text="Loading",
-                font=("Arial", 10, "bold"), bg='#CCCCCC', relief='solid', borderwidth=1)
-            self.merged_label_2.place(x=4, y=30 + 30 * 8 + 4, width=total, height=30)
-        if not hasattr(self, 'merged_label_3'):
-            self.merged_label_3 = tk.Label(self.frame, text="Evaluation point #",
-                font=("Arial", 10, "bold"), bg='#CCCCCC', relief='solid', borderwidth=1)
-            self.merged_label_3.place(x=4 + 490, y=4, width=100, height=30)
-        if not hasattr(self, 'merged_label_4'):
-            self.merged_label_4 = tk.Label(self.frame, text="r [mm]",
-                font=("Arial", 10, "bold"), bg='#CCCCCC', relief='solid', borderwidth=1)
-            self.merged_label_4.place(x=4 + 590, y=4, width=80, height=30)
-        if not hasattr(self, 'merged_label_5'):
-            self.merged_label_5 = tk.Label(self.frame, text="Deflection [μm]",
-                font=("Arial", 10, "bold"), bg='#CCCCCC', relief='solid', borderwidth=1)
-            self.merged_label_5.place(x=4 + 670, y=4, width=100, height=30)
-
-    def adjust_column_widths(self):
-        cw = {'Layer': 100, 'Modulus [MPa]': 110, 'Poisson [-]': 90,
-              'Thickness [mm]': 110, 'Evaluation point': 100,
-              'r [mm]': 80, 'Deflection [μm]': 100}
-        for k, v in cw.items():
-            if k in self.model.columnNames:
-                self.model.columnwidths[k] = v
-        for col in self.model.columnNames:
-            if col not in cw:
-                self.model.columnwidths[col] = max(len(col) * 8, 80)
-        self.table.redraw()
-
-    def col_idx(self, col_name):
+    @staticmethod
+    def _f(var, default=0.0):
         try:
-            return self.model.columnNames.index(col_name)
-        except ValueError:
-            return None
+            s = var.get().strip()
+            return float(s) if s else 0.0
+        except (ValueError, AttributeError):
+            return default
 
-    def color_cells(self, rows, cols, color):
-        if rows is not None and not isinstance(rows, (list, tuple)):
-            rows = [rows]
-        if cols is not None and not isinstance(cols, (list, tuple)):
-            cols = [cols]
-        self.table.setcellColor(rows, cols, color, key='bg')
+    # ---- Card I: layers + load ----
+    def _build_layered_profile(self):
+        outer, body = self._card(
+            "Ⅰ  Layered Profile & Loading",
+            "Layer moduli, Poisson ratios and thicknesses, plus the FWD load stress and "
+            "loading-plate radius. Values are used directly to compute deflections "
+            "(no back-calculation/search here).",
+            self.COLOR_INPUT
+        )
+        grid = tk.Frame(body, bg=self.COLOR_CARD_BG)
+        grid.pack(side=tk.TOP, fill=tk.X)
+        for c, h in enumerate(['Layer', 'Modulus [MPa]', 'Poisson [-]', 'Thickness [mm]']):
+            self._col_header(grid, h, c)
+        modulus_def = ['8000', '400', '300', '200', '100']
+        poisson_def = ['0.30', '0.35', '0.35', '0.40', '0.40']
+        thickness_def = ['150', '240', '300', '500', None]
+        for i in range(5):
+            r = i + 1
+            self._badge(grid, f'L{i+1}').grid(row=r, column=0, padx=4, pady=3)
+            vm = tk.StringVar(value=modulus_def[i])
+            self.modulus_vars[i] = vm
+            self._entry(grid, vm).grid(row=r, column=1, padx=4, pady=3, sticky='ew')
+            vp = tk.StringVar(value=poisson_def[i])
+            self.poisson_vars[i] = vp
+            self._entry(grid, vp).grid(row=r, column=2, padx=4, pady=3, sticky='ew')
+            if i == 4:
+                self._disabled_box(grid, 'semi-infinite').grid(row=r, column=3, padx=4, pady=3, sticky='ew')
+                self.thickness_vars[i] = None
+            else:
+                vt = tk.StringVar(value=thickness_def[i])
+                self.thickness_vars[i] = vt
+                self._entry(grid, vt).grid(row=r, column=3, padx=4, pady=3, sticky='ew')
+        for c in range(4):
+            grid.columnconfigure(c, weight=1)
 
-    def set_cell_colors(self):
-        grey, white, pink = '#CCCCCC', '#FFFFFF', '#D6AFB9'
-        # Fixed labels 
-        for rc in [(1,0),(2,0),(3,0),(4,0),(5,0),(6,0),(6,3),(1,1),(1,2),(1,3),
-                   (10,0),(10,2),(1,5),(2,5),(3,5),(4,5),(5,5),(6,5),
-                   (7,5),(8,5),(9,5),(10,5),(0,4),(1,4),(2,4),(3,4),(4,4),(5,4),(6,4),(7,4),(8,4),(9,4),(10,4),
-                   (7,0),(7,1),(7,2),(7,3),(8,0),(8,1),(8,2),(8,3)]:
-            self.color_cells(rc[0], rc[1], grey)
-        # Editable 
-        for rc in [(2,1),(2,2),(2,3),(3,1),(3,2),(3,3),(4,1),(4,2),(4,3),
-                   (5,1),(5,2),(5,3),(6,1),(6,2),(10,1),(10,3),
-                   (10,6),(9,6),(8,6),(7,6),(6,6),(5,6),(4,6),(3,6),(2,6),(1,6)]:
-            self.color_cells(rc[0], rc[1], white)
-        # Results 
-        for rc in [(1,7),(2,7),(3,7),(4,7),(5,7),(6,7),(7,7),(8,7),(9,7),(10,7)]:
-            self.color_cells(rc[0], rc[1], pink)
-        self.table.redraw()
+        tk.Frame(body, bg=self.COLOR_BORDER, height=1).pack(fill=tk.X, pady=(16, 10))
 
-    def highlight_results(self):
-        c = self.col_idx('Deflection [μm]')
-        if c is None:
+        load = tk.Frame(body, bg=self.COLOR_CARD_BG)
+        load.pack(side=tk.TOP, fill=tk.X)
+        tk.Label(load, text="Load System", font=("Georgia", 12, "bold"),
+                 bg=self.COLOR_CARD_BG, fg=self.COLOR_INPUT).grid(
+            row=0, column=0, columnspan=2, sticky='w', pady=(0, 6))
+        tk.Label(load, text='Stress [MPa]', font=("Segoe UI", 12, "bold"),
+                 bg=self.COLOR_CARD_BG, fg=self.COLOR_TEXT).grid(row=1, column=0, padx=8, sticky='w')
+        self._entry(load, self.stress_var, width=14).grid(row=2, column=0, padx=8, pady=(2, 4), sticky='ew')
+        tk.Label(load, text='Loading Radius [mm]', font=("Segoe UI", 12, "bold"),
+                 bg=self.COLOR_CARD_BG, fg=self.COLOR_TEXT).grid(row=1, column=1, padx=8, sticky='w')
+        self._entry(load, self.radius_var, width=14).grid(row=2, column=1, padx=8, pady=(2, 4), sticky='ew')
+        load.columnconfigure(0, weight=1)
+        load.columnconfigure(1, weight=1)
+
+        self.modules['layered_profile'] = outer
+
+    # ---- Card II: evaluation points (r in, deflection out, per-point ON/OFF) ----
+    def _build_evaluation(self):
+        outer, body = self._card(
+            "Ⅱ  Evaluation Points",
+            "r [mm]: FWD geophone offset from the load centre (input).\n"
+            "Deflection [μm]: computed surface deflection (output).\n"
+            "Use: toggle a point ON/OFF; OFF points are skipped by the forward "
+            "model and their deflection is reported as 0.",
+            self.COLOR_RESULT
+        )
+        grid = tk.Frame(body, bg=self.COLOR_CARD_BG)
+        grid.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        for c, h in enumerate(['Point', 'r [mm]', 'Deflection [μm]', 'Use']):
+            self._col_header(grid, h, c)
+        r_def = ['0', '100', '200', '300', '450', '600', '900', '1200', '1500', '1800']
+        self.eval_row_widgets = {}
+        for i in range(10):
+            r = i + 1
+            badge = self._badge(grid, f'P{i+1}')
+            badge.grid(row=r, column=0, padx=4, pady=3)
+            vr = tk.StringVar(value=r_def[i])
+            self.r_vars[i] = vr
+            r_entry = self._entry(grid, vr)
+            r_entry.grid(row=r, column=1, padx=4, pady=3, sticky='ew')
+            vd = tk.StringVar(value='')
+            self.defl_vars[i] = vd
+            defl_entry = self._entry(grid, vd, result=True)
+            defl_entry.grid(row=r, column=2, padx=4, pady=3, sticky='ew')
+            btn = FlatButton(grid, text='● ON', command=lambda i=i: self._toggle_point(i),
+                              font=("Segoe UI", 10, "bold"), bg='#2D5F3F', fg='white',
+                              activebg='#1E4029', activefg='white', relief=tk.FLAT, width=6)
+            btn.grid(row=r, column=3, padx=4, pady=3)
+            self.mask_buttons[i] = btn
+            self.eval_row_widgets[i] = {'badge': badge, 'r_entry': r_entry, 'defl_entry': defl_entry}
+        for c in range(3):
+            grid.columnconfigure(c, weight=1)
+
+        self.modules['evaluation'] = outer
+
+    def _toggle_point(self, i):
+        self.point_enabled[i] = not self.point_enabled[i]
+        btn = self.mask_buttons[i]
+        if self.point_enabled[i]:
+            btn._bg, btn._activebg, text = '#2D5F3F', '#1E4029', '● ON'
+        else:
+            btn._bg, btn._activebg, text = '#6B7280', '#4A5568', '○ OFF'
+        btn.config(text=text)
+        btn._apply_state()
+        self._set_eval_row_state(i, self.point_enabled[i])
+
+    def _set_eval_row_state(self, i, enabled):
+        """Grey out / restore an evaluation row to mirror its ON/OFF state,
+        using the same readonly styling as the rest of the panel."""
+        widgets = self.eval_row_widgets.get(i)
+        if not widgets:
             return
-        rows = [r for r in range(11)
-                if str(self.model.data.get(r, {}).get('Deflection [μm]', '')) not in ('', 'nan', 'None')]
-        if rows:
-            self.color_cells(rows, c, '#D6AFB9')
-        self.table.redraw()
+        badge = widgets['badge']
+        if enabled:
+            badge.config(bg='#4A5568', fg='#F7F5EE')
+        else:
+            badge.config(bg=self.COLOR_READONLY, fg='#8A8473')
+        r_entry = widgets['r_entry']
+        if enabled:
+            r_entry.config(state='normal', bg=self.COLOR_ENTRY_BG, fg=self.COLOR_TEXT)
+        else:
+            r_entry.config(state='readonly', readonlybackground=self.COLOR_READONLY,
+                            disabledforeground='#8A8473', fg='#5D5747')
+        defl_entry = widgets['defl_entry']
+        if enabled:
+            defl_entry.config(readonlybackground=self.COLOR_RESULT_BG, fg='#7A3B54')
+        else:
+            defl_entry.config(readonlybackground=self.COLOR_READONLY, fg='#8A8473')
 
-    def validate_inputs(self):
+    # ---- data / validation / compute ----
+    def build_arr(self):
+        """Packed 11x8 array, same layout as InputFormsManager.build_arr_main():
+        rows 2-6 = layer 1-5 (Modulus/Poisson/Thickness), row 10 = load
+        (Stress/Radius), rows 1-10 = evaluation points (col4=mask, col6=r).
+        """
+        arr = np.zeros((11, 8), dtype=np.float64)
+        for i in range(5):
+            arr[i + 2, 0] = i + 1
+            arr[i + 2, 1] = self._f(self.modulus_vars[i])
+            arr[i + 2, 2] = self._f(self.poisson_vars[i])
+            arr[i + 2, 3] = self._f(self.thickness_vars[i]) if self.thickness_vars[i] is not None else 0.0
+        arr[10, 1] = self._f(self.stress_var)
+        arr[10, 3] = self._f(self.radius_var)
+        for i in range(10):
+            arr[i + 1, 5] = i + 1
+            arr[i + 1, 6] = self._f(self.r_vars[i])
+            arr[i + 1, 4] = 0.0 if self.point_enabled[i] else 1.0  # 0=use, 1=excluded
+        return np.ascontiguousarray(arr)
+
+    def validate(self):
         errors = []
-        for li, row in enumerate(range(2, 7)):
-            d = self.model.data.get(row, {})
-            # Modulus
-            try:
-                mod = float(str(d.get('Modulus [MPa]', '')))
-                if not (0 < mod < 1_000_000):
-                    errors.append(f"Layer {li+1}: Modulus {mod:g} MPa out of range (0 < E < 1,000,000).")
-            except (ValueError, TypeError):
-                errors.append(f"Layer {li+1}: Modulus is not a valid number.")
-            # Poisson
-            try:
-                pois = float(str(d.get('Poisson [-]', '')))
-                if not (-1.0 <= pois <= 0.5):
-                    errors.append(f"Layer {li+1}: Poisson {pois:g} out of physical range (-1 to 0.5).")
-            except (ValueError, TypeError):
-                errors.append(f"Layer {li+1}: Poisson is not a valid number.")
-            # Thickness
-            if li < 4:
-                thk_raw = str(d.get('Thickness [mm]', ''))
-                try:
-                    thk = float(thk_raw)
-                    if li == 0:
-                        if not (0 < thk <= 1_000_000):
-                            errors.append(f"Layer 1: thickness {thk:g} mm must be > 0 and <= 1,000,000.")
-                    else:
-                        if not (0 <= thk <= 1_000_000):
-                            errors.append(f"Layer {li+1}: thickness {thk:g} mm must be 0 to 1,000,000.")
-                except (ValueError, TypeError):
-                    errors.append(f"Layer {li+1}: thickness is not a valid number.")
+        for i in range(5):
+            mod = self._f(self.modulus_vars[i])
+            if not (0 < mod < 1_000_000):
+                errors.append(f"Layer {i+1}: Modulus {mod:g} MPa out of range (0 < E < 1,000,000).")
+            pois = self._f(self.poisson_vars[i])
+            if not (-1.0 <= pois <= 0.5):
+                errors.append(f"Layer {i+1}: Poisson {pois:g} out of physical range (-1 to 0.5).")
+            if self.thickness_vars[i] is not None:
+                thk = self._f(self.thickness_vars[i])
+                if i == 0:
+                    if not (0 < thk <= 1_000_000):
+                        errors.append(f"Layer 1: thickness {thk:g} mm must be > 0 and <= 1,000,000.")
+                elif not (0 <= thk <= 1_000_000):
+                    errors.append(f"Layer {i+1}: thickness {thk:g} mm must be 0 to 1,000,000.")
+        stress = self._f(self.stress_var)
+        if not (0 < stress < 1_000_000):
+            errors.append(f"Stress {stress:g} MPa must be > 0.")
+        radius = self._f(self.radius_var)
+        if not (0 < radius <= 1_000_000):
+            errors.append(f"Loading radius {radius:g} mm must be > 0.")
+        for i in range(10):
+            if not self.point_enabled.get(i, True):
+                continue  # OFF points are skipped by the forward model
+            if self._f(self.r_vars[i]) < 0:
+                errors.append(f"Point {i+1}: r must be >= 0.")
         return errors
-
-    def get_data(self):
-        self.frame.focus_set()
-
-        errors = self.validate_inputs()
-        if errors:
-            messagebox.showerror("Invalid Input",
-                                 "Please fix the following before computing:\n\n" +
-                                 "\n".join(f"• {e}" for e in errors))
-            self.result_text.delete(1.0, tk.END)
-            self.result_text.insert(tk.END, "[ERROR] Calculation aborted. See dialog for details.")
-            return
-
-        df = pd.DataFrame.from_dict(self.model.data, orient='index')
-        try:
-            df.to_csv('data.csv', index=False)
-        except Exception:
-            pass
-
-        df_num = df.apply(pd.to_numeric, errors='coerce').fillna(0.0)
-        arr = np.ascontiguousarray(df_num.iloc[:, :8].to_numpy(), dtype=np.float64)
-
-        try:
-            result = WuWan_pavement_forward.Calculation(arr, calc_grad=False)
-        except Exception as e:
-            self.result_text.delete(1.0, tk.END)
-            self.result_text.insert(tk.END, f"[ERROR] Calculation failed: {e}")
-            return
-
-        u = list(result.result_displacement)
-        values_um = [round(float(v) * 1000, 1) for v in u]
-
-        for i in range(1, 11):
-            if i in self.model.data:
-                idx = i - 1
-                if idx < len(u):
-                    self.model.data[i]['Deflection [mm]'] = str(float(u[idx]))
-                    self.model.data[i]['Deflection [μm]'] = str(values_um[idx])
-
-        self.highlight_results()
-        self.result_text.delete(1.0, tk.END)
-        self.result_text.insert(tk.END, 'Compute Finished!   ')
-        if hasattr(self, 'parent_menu') and getattr(self.parent_menu, 'is_profile_open', False):
-            self.parent_menu._draw_profile_plot()
-
-    def save_data(self):
-        folder = filedialog.askdirectory(title="Select folder to save data")
-        if not folder:
-            return
-        try:
-            df = pd.DataFrame.from_dict(self.model.data, orient='index')
-            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            csv_path = os.path.join(folder, f"forward_data_{ts}.csv")
-            log_path = os.path.join(folder, f"forward_data_{ts}.log")
-            df.to_csv(csv_path, index=False)
-            with open(log_path, 'w', encoding='utf-8') as f:
-                f.write("WuWan Forward Calculation Data\nSaved: " + ts + "\n\n=== Input / Output Table ===\n")
-                f.write(df.to_string() + "\n")
-            messagebox.showinfo("Saved", f"Data saved to:\n{csv_path}\n{log_path}")
-            self.result_text.delete(1.0, tk.END)
-            self.result_text.insert(tk.END, f"Data saved to: {folder}   ")
-        except Exception as e:
-            messagebox.showerror("Save Failed", f"Could not save data:\n{e}")
 
 
 if __name__ == '__main__':

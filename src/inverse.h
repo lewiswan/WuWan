@@ -71,10 +71,32 @@ inline void RunBackCalKernel (const Eigen::Ref<const InputMat>& noise_input, Bac
     Vec5& x0_phys = back_buffer.x0_phys;
     Vec5& x0_log = back_buffer.x0_log;
 
+    // Point mask from input col 4: 0 = use, non-zero = excluded.
+    Vec10 active_mask = (noise_input.block<10, 1>(1, 4).array() == 0.0).cast<double>();
+    int active_count = static_cast<int>(active_mask.sum());
+    if (active_count < 5) {
+        // Fewer residuals than the 5 unknown moduli: system is under-determined,
+        // any "solution" is dictated by LM damping. Refuse instead of guessing.
+        std::cerr << "[WuWan] BackCalculation aborted: only " << active_count
+                  << " evaluation points enabled, need >= 5." << std::endl;
+        back_result.final_moduli    = x0_phys;
+        back_result.elapsed_seconds = 0.0;
+        back_result.call_count      = 0;
+        back_result.grad_count      = 0;
+        back_result.iterations      = 0;
+        back_result.final_cost      = -1.0;
+        back_result.status          = -1; // NumericalError
+        return;
+    }
+
     BackCalcFunctor functor;
     functor.n_params = 5;
-    functor.n_residuals = 10;
-    functor.u_target = back_buffer.deflections_with_noise;
+    functor.n_residuals = active_count;
+    functor.active_mask = active_mask;
+    // Masked entries get a harmless denominator of 1.0 so the (u-u_t)/u_t row is
+    // finite before the mask zeroes it (avoids 0/0 = NaN when a masked target is 0).
+    functor.u_target = (active_mask.array() > 0.5)
+                           .select(back_buffer.deflections_with_noise.array(), 1.0);
     functor.arr_data = noise_input;
 
     ProjectedLMOptions opts;
@@ -94,10 +116,14 @@ inline void RunBackCalKernel (const Eigen::Ref<const InputMat>& noise_input, Bac
         opts.xtol     = 1e-6;
         opts.gtol     = 1e-6;
         opts.verbose  = verbose;
-        opts.min_iter = 10;              
+        opts.min_iter = 10;
         opts.cost_threshold = 1e-16;
     }
-    
+    // cost = 0.5 * sum of active squared residuals: fewer active points means a
+    // smaller sum, so scale the absolute threshold to keep the per-point
+    // criterion identical to the all-10-points case.
+    opts.cost_threshold *= active_count / 10.0;
+
 
     auto start = std::chrono::high_resolution_clock::now();
 

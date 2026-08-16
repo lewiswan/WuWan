@@ -28,6 +28,17 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+
+# Under build isolation, pip's CMake subprocess does not inherit the
+# active conda/venv's CMAKE_PREFIX_PATH, so libraries installed there
+# (e.g. conda's Boost) are invisible to find_package(). The target
+# Python environment's prefix is known regardless of build isolation
+# (Python_EXECUTABLE above resolves to the install env's interpreter,
+# not the isolated build venv's), so use it as a search-path hint.
+get_filename_component(_python_bin_dir "${Python_EXECUTABLE}" DIRECTORY)
+get_filename_component(_python_prefix "${_python_bin_dir}" DIRECTORY)
+list(APPEND CMAKE_PREFIX_PATH "${_python_prefix}")
+
 find_package(pybind11 CONFIG REQUIRED)
 find_package(Boost REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -38,14 +49,17 @@ set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(EIGEN_LEAVE_TEST_IN_ALL_TARGET OFF CACHE BOOL "" FORCE)
 
-# FetchContent_Declare(
-#   Eigen3
-#   URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
-# )
-# FetchContent_MakeAvailable(Eigen3)
-
-set(Eigen3_DIR "/opt/anaconda3/envs/cuqipy_1110/lib/python3.12/site-packages/share/eigen3/cmake")
-find_package(Eigen3 3.4.0 REQUIRED)
+# Use a system/conda-installed Eigen3 if one is discoverable; otherwise
+# download it. Avoids depending on a machine-specific Eigen3_DIR.
+find_package(Eigen3 3.4.0 QUIET CONFIG)
+if(NOT Eigen3_FOUND)
+    message(STATUS "Eigen3 not found on this system; fetching Eigen 3.4.0 via FetchContent")
+    FetchContent_Declare(
+      Eigen3
+      URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+    )
+    FetchContent_MakeAvailable(Eigen3)
+endif()
 
 python_add_library(WuWan_pavement_forward MODULE 
     src/forward_main.cpp 

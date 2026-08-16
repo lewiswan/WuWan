@@ -14,4 +14,4 @@ dependencies = [
 [tool.scikit-build]
 
 cmake.build-type = "Release"
-cmake.verbose = true  
+build.verbose = true

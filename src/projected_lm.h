@@ -233,7 +233,7 @@ ProjectedLMResult projected_lm_solve(Functor& functor, const Vec5& x0, const Vec
             double cost_change = std::abs(cost - cost_new);
             if (relaxed_stop && cost_change < opts.ftol * std::max(cost, 1e-10)) {
                 x = x_new;
-                // r = r_new; 
+                r = r_new; // keep r in sync with x: final_cost is recomputed from r at exit
                 cost_prev = cost;
                 cost = cost_new;
                 result.final_cost = cost; 

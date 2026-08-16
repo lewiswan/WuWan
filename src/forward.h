@@ -12,6 +12,11 @@ inline void RunSimulationKernel(ModelParams& params, CalcBuffer& buffer, SimResu
     results.count_number.setZero();
 
     for (int i = 0; i < 10; ++i) {
+        if (input_arr(i + 1, 4) != 0.0) {
+            results.result_displacement(i) = 0.0;
+            if (calc_grad) results.J_E.row(i).setZero();
+            continue;
+        }
         params.evaluation(0) = input_arr(i + 1, 6);
         bessel_zeros(buffer, params.evaluation(0) / params.H, params.a / params.H);
         gaussian_quadrature_integrate(params, buffer, results, calc_grad);

@@ -10,9 +10,10 @@
 // =====================================================================
 
 struct BackCalcFunctor {
-    int n_params;       
-    int n_residuals;    
-    Vec10 u_target;       
+    int n_params;
+    int n_residuals;
+    Vec10 u_target;
+    Vec10 active_mask = Vec10::Ones(); // 1=point used, 0=point excluded (input_arr col 4 != 0)
     mutable InputMat arr_data;
 
     mutable Vec5 cached_x;
@@ -60,22 +61,25 @@ struct BackCalcFunctor {
 
 
     // ============ cost function: r_i = (u_pred_i - u_target_i) / u_target_i ============
+    // Excluded points (active_mask=0) are zeroed row-wise: since J^T J, J^T r and
+    // ||r||^2 are all sums over points, a zero row removes that point's contribution
+    // exactly -- equivalent to solving the reduced least-squares problem.
     int operator()(const Vec5& log_x, Vec10& residuals) const {
         compute_cached(log_x, false);
-        residuals = (cached_u - u_target).array() / u_target.array();
+        residuals = ((cached_u - u_target).array() / u_target.array()) * active_mask.array();
         return 0;
     }
     // ============ Jac: dr_i / d(logE_j) = (1/u_target_i) * dU_i/d(logE_j) ============
     int df(const Vec5& log_x, Mat10x5& jac) const {
         compute_cached(log_x, true);
-        jac = cached_J_log.array().colwise() / u_target.array();
+        jac = (cached_J_log.array().colwise() / u_target.array()).colwise() * active_mask.array();
         return 0;
     }
     // compute all in one call (for projection methods)
     int compute_all(const Vec5& log_x, Vec10& residuals, Mat10x5& jac) const {
         compute_cached(log_x, true);
-        residuals = (cached_u - u_target).array() / u_target.array();
-        jac = cached_J_log.array().colwise() / u_target.array();
+        residuals = ((cached_u - u_target).array() / u_target.array()) * active_mask.array();
+        jac = (cached_J_log.array().colwise() / u_target.array()).colwise() * active_mask.array();
         return 0;
     }
 };
