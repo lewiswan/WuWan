@@ -241,9 +241,9 @@ inline void bessel_zeros(CalcBuffer& buffer, double r, double a) {
 }
 
 inline void Integrand_52(CalcBuffer& buffer, const ModelParams& params) {
-    double* __restrict__ M = buffer.Coe_Matrix.data(); 
-    double* __restrict__ vb = buffer.b.data();
-    double* __restrict__ Coe = buffer.Coe.data();
+    double* RESTRICT M = buffer.Coe_Matrix.data();
+    double* RESTRICT vb = buffer.b.data();
+    double* RESTRICT Coe = buffer.Coe.data();
     
     for (int i = 0; i < 18; ++i) vb[i] = 0.0;
     vb[0] = 1.0;
@@ -437,9 +437,9 @@ inline void compute_dKdE_times_X(CalcBuffer& buffer, int k){
 }
 
 inline void Solve_dXdE(CalcBuffer& buffer) {
-    double* __restrict__ Y = buffer.Y.data(); 
-    const double* __restrict__ M = buffer.Coe_Matrix.data(); 
-    double* __restrict__ Z = buffer.Z.data(); 
+    double* RESTRICT Y = buffer.Y.data();
+    const double* RESTRICT M = buffer.Coe_Matrix.data();
+    double* RESTRICT Z = buffer.Z.data();
     
     // =========================================================
     // Part 1: Forward Substitution (Ly = b)

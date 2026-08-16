@@ -2,12 +2,8 @@
 #ifndef EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE  
 #endif
-#if defined(_MSC_VER)
-#define RESTRICT __restrict
-#else
-#define RESTRICT __restrict__
-#endif
-#define EIGEN_DONT_ALIGN_STATICALLY 0 
+// RESTRICT macro comes from structures.h (included below).
+#define EIGEN_DONT_ALIGN_STATICALLY 0
 #pragma once
 #include <iostream>
 #include "structures.h" 

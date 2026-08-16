@@ -4,6 +4,7 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
+#include <string> // ProjectedLMResult::message (don't rely on transitive includes)
 #include "structures.h"
 
 // ======================================================================

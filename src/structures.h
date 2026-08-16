@@ -4,6 +4,16 @@
 #include <vector>
 #include <array>
 
+// Cross-compiler restrict qualifier: MSVC only knows __restrict, GCC/Clang
+// spell it __restrict__. Defined here (the base header) so every user sees it.
+#ifndef RESTRICT
+#if defined(_MSC_VER)
+#define RESTRICT __restrict
+#else
+#define RESTRICT __restrict__
+#endif
+#endif
+
 // ----------------- 1. Type Definition  -----------------
 // Define some convenient aliases
 using Vec2 = Eigen::Matrix<double, 2, 1>;

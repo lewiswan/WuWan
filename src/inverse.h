@@ -5,6 +5,7 @@
 #include <cmath>
 #include <iostream>
 #include <chrono>
+#include <random> // mt19937_64 / random_device in add_err (don't rely on transitive includes)
 #include "structures.h"
 #include "forward.h"
 #include "inverse_functor.h"
