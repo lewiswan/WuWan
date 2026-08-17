@@ -25,6 +25,36 @@ import WuWan_pavement_inverse
 import WuWan_pavement_montecarlo
 import WuWan_pavement_slo
 
+# ---------------------------------------------------------------------------
+# Cross-platform display scaling.
+#
+# Every font size and pixel dimension in this file was tuned on macOS, where
+# Tk maps 1 point ~ 1 pixel. On a DPI-aware Windows process Tk instead maps
+# points at dpi/72 (33% bigger at 100% scaling, 2x+ on a 150% laptop panel),
+# while the pixel skeleton (window geometry, sidebar widths, row heights)
+# stays unscaled -- giving oversized fonts crammed into undersized frames.
+#
+# _init_ui_scaling() pins Tk's point size to dpi/96 (Mac visual parity,
+# still sharp at any DPI) and records the same factor in UI_SCALE; S(px)
+# then applies it to the pixel skeleton so text and layout move together.
+# ---------------------------------------------------------------------------
+UI_SCALE = 1.0
+
+def _init_ui_scaling(root):
+    global UI_SCALE
+    try:
+        if root.tk.call('tk', 'windowingsystem') == 'win32':
+            dpi = float(root.winfo_fpixels('1i'))
+            root.tk.call('tk', 'scaling', dpi / 96.0)
+            UI_SCALE = max(1.0, dpi / 96.0)
+    except Exception:
+        UI_SCALE = 1.0
+    return UI_SCALE
+
+def S(px):
+    """Scale a Mac-tuned pixel dimension to the current display."""
+    return int(round(px * UI_SCALE))
+
 def _make_mono_font(size=12):
     available = set(tkfont.families())
     for name in ("Menlo", "SF Mono", "Monaco", "Consolas", "DejaVu Sans Mono", "Courier New"):
@@ -78,11 +108,11 @@ class FlatButton(tk.Label):
 
 # ToolTip 
 class ToolTip:
-    def __init__(self, widget, text, wraplength=460,
+    def __init__(self, widget, text, wraplength=None,
                  bg='#2C3E50', fg='#F7F5EE', font=("Segoe UI", 10)):
         self.widget = widget
         self.text = text
-        self.wraplength = wraplength
+        self.wraplength = wraplength if wraplength is not None else S(460)
         self.bg = bg
         self.fg = fg
         self.font = font
@@ -120,8 +150,10 @@ class ToolTip:
 class MainMenu:
     def __init__(self, root):
         self.root = root
+        _init_ui_scaling(root)  # must run before any geometry/font is realised
         self.root.title('WuWan v0.3 - Main Menu')
-        self.root.geometry('600x600')
+        self.root.geometry(f'{S(600)}x{S(600)}')
+        self.root.minsize(S(520), S(520))
         self.root.configure(bg='#F5F2E8')
 
         self.main_frame = tk.Frame(root, bg='#F5F2E8', padx=20, pady=20)
@@ -158,18 +190,19 @@ class MainMenu:
                  ).pack(side=tk.BOTTOM, pady=10)
 
         tk.Label(self.main_frame, text="WuWan (0.3) is an open-source computational tool for FWD analysis written in C++  and Python. It solves for surface deflections in a five-layered half-space under a single circular stress patch. The tool has three modules: (i) forward-calculation, in which the user inputs the layering composition and elastic properties of the half-space and the code produces deflections at ten offset distances from the center of the stress patch; (ii) back-calculation, in which the user inputs the layering composition and deflections (including noise levels) and the code produces the elastic moduli with uncertainty analysis based on a Monte-Carlo approach; and (iii) sensor optimization (forthcoming), in which the user inputs the layering composition and elastic properties (including noise levels), and the code produces a suggested spacing for the deflection sensors to optimize back-calculation results. ",
-                 font=("Georgia", 10), bg='#F5F2E8', fg="#291A61", wraplength=500, justify='left').pack(pady=10)
+                 font=("Georgia", 10), bg='#F5F2E8', fg="#291A61", wraplength=S(500), justify='left').pack(pady=10)
 
     # Forward Calculation
     def open_forward_calculation(self):
         self.root.withdraw()
         self.forward_window = tk.Toplevel(self.root)
-        self.forward_window.geometry('740x620')
+        self.forward_window.geometry(f'{S(740)}x{S(620)}')
+        self.forward_window.minsize(S(680), S(540))
         self.forward_window.title('WuWan v0.3 - Forward Calculation')
         self.forward_window.configure(bg='#F5F2E8')
         self.is_profile_open = False
 
-        top_bar = tk.Frame(self.forward_window, height=42, bg="#2C3E50")
+        top_bar = tk.Frame(self.forward_window, height=S(42), bg="#2C3E50")
         top_bar.pack(side=tk.TOP, fill=tk.X)
         top_bar.pack_propagate(False)
 
@@ -190,24 +223,27 @@ class MainMenu:
                                       relief=tk.FLAT, padx=14, pady=4)
         self.profile_btn.pack(side=tk.RIGHT, padx=10, pady=8)
 
-        main_container = tk.Frame(self.forward_window, bg='#F5F2E8')
-        main_container.pack(fill=tk.BOTH, expand=True)
+        # Resizable split: sidebar | cards (+output) | profile plot (toggled).
+        # A PanedWindow gives each region a draggable sash instead of the old
+        # fixed-width frames that clipped on high-DPI displays.
+        self.fw_paned = tk.PanedWindow(self.forward_window, orient=tk.HORIZONTAL,
+                                       bg='#D6D3C7', sashwidth=S(5),
+                                       sashrelief=tk.FLAT, bd=0, opaqueresize=True)
+        self.fw_paned.pack(fill=tk.BOTH, expand=True)
 
         # --- Left sidebar (mirrors Back Calculation) ---
-        sidebar = tk.Frame(main_container, width=210, bg="#E8E4D8",
+        sidebar = tk.Frame(self.fw_paned, bg="#E8E4D8",
                            highlightbackground="#BDB7A4", highlightthickness=1)
-        sidebar.pack(side=tk.LEFT, fill=tk.Y)
-        sidebar.pack_propagate(False)
+        self.fw_paned.add(sidebar, width=S(210), minsize=S(150))
 
         # --- Card area + bottom output ---
-        self.calc_frame = tk.Frame(main_container, width=520, bg='#F5F2E8')
-        self.calc_frame.pack_propagate(0)
-        self.calc_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
+        self.calc_frame = tk.Frame(self.fw_paned, bg='#F5F2E8')
+        self.fw_paned.add(self.calc_frame, width=S(520), minsize=S(420))
 
-        output_container = tk.Frame(self.calc_frame, bg="#FCFCFA", height=110)
+        output_container = tk.Frame(self.calc_frame, bg="#FCFCFA", height=S(110))
         output_container.pack(side=tk.BOTTOM, fill=tk.X)
         output_container.pack_propagate(False)
-        out_header = tk.Frame(output_container, bg="#2C3E50", height=22)
+        out_header = tk.Frame(output_container, bg="#2C3E50", height=S(22))
         out_header.pack(side=tk.TOP, fill=tk.X)
         out_header.pack_propagate(False)
         tk.Label(out_header, text="  ▼ Output", font=("Segoe UI", 9, "bold"),
@@ -224,10 +260,9 @@ class MainMenu:
         self._build_forward_sidebar(sidebar)
         self.fw_show('layered_profile')
 
-        # --- Profile plot (hidden until toggled) ---
-        self.plot_frame = tk.Frame(main_container, bg="white", width=760,
+        # --- Profile plot (hidden until toggled; added as a pane on demand) ---
+        self.plot_frame = tk.Frame(self.fw_paned, bg="white",
                                    highlightbackground='#D6D3C7', highlightthickness=1)
-        self.plot_frame.pack_propagate(0)
 
         tk.Label(self.plot_frame,
                  text="Deflection profile will be shown here\nafter computation",
@@ -318,12 +353,13 @@ class MainMenu:
         self.root.withdraw()
 
         self.back_window = tk.Toplevel(self.root)
-        self.back_window.geometry('960x800')
+        self.back_window.geometry(f'{S(960)}x{S(800)}')
+        self.back_window.minsize(S(820), S(640))
         self.back_window.title('WuWan v0.3 - Back Calculation')
         self.back_window.configure(bg='#F5F2E8')
 
         # --- Top toolbar ---
-        top_bar = tk.Frame(self.back_window, height=42, bg="#2C3E50")
+        top_bar = tk.Frame(self.back_window, height=S(42), bg="#2C3E50")
         top_bar.pack(side=tk.TOP, fill=tk.X)
         top_bar.pack_propagate(False)
 
@@ -338,26 +374,27 @@ class MainMenu:
                  font=("Georgia", 12, "bold"),
                  bg="#2C3E50", fg="white").pack(side=tk.LEFT, padx=15)
 
-        # --- Main container ---
-        main_container = tk.Frame(self.back_window, bg='#F5F2E8')
+        # --- Main container: resizable sidebar | work area split ---
+        main_container = tk.PanedWindow(self.back_window, orient=tk.HORIZONTAL,
+                                        bg='#D6D3C7', sashwidth=S(5),
+                                        sashrelief=tk.FLAT, bd=0, opaqueresize=True)
         main_container.pack(fill=tk.BOTH, expand=True)
 
         # --- Left sidebar ---
-        sidebar = tk.Frame(main_container, width=240, bg="#E8E4D8",
+        sidebar = tk.Frame(main_container, bg="#E8E4D8",
                            highlightbackground="#BDB7A4", highlightthickness=1)
-        sidebar.pack(side=tk.LEFT, fill=tk.Y)
-        sidebar.pack_propagate(False)
+        main_container.add(sidebar, width=S(240), minsize=S(170))
 
         # --- Right area: whiteboard + output ---
         right_area = tk.Frame(main_container, bg='#F5F2E8')
-        right_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        main_container.add(right_area, minsize=S(520))
 
         # Bottom output
-        output_container = tk.Frame(right_area, bg="#FCFCFA", height=170)
+        output_container = tk.Frame(right_area, bg="#FCFCFA", height=S(170))
         output_container.pack(side=tk.BOTTOM, fill=tk.X)
         output_container.pack_propagate(False)
 
-        out_header = tk.Frame(output_container, bg="#2C3E50", height=24)
+        out_header = tk.Frame(output_container, bg="#2C3E50", height=S(24))
         out_header.pack(side=tk.TOP, fill=tk.X)
         out_header.pack_propagate(False)
         tk.Label(out_header, text="  ▼ Output Log",
@@ -652,7 +689,7 @@ class MainMenu:
         cols = ('Layer', 'Modulus [MPa]', 'Poisson [-]', 'Thickness [mm]')
         style = ttk.Style()
         style.theme_use('clam')
-        style.configure("Result.Treeview", rowheight=28, font=("Consolas", 14),
+        style.configure("Result.Treeview", rowheight=S(28), font=("Consolas", 14),
                         background='#FCFCFA', fieldbackground='#FCFCFA', foreground='#1B2631')
         style.configure("Result.Treeview.Heading", font=("Segoe UI", 14, "bold"), background='#4A5568', foreground='white')
         style.map("Result.Treeview", background=[('selected', '#EFEBDC')], foreground=[('selected', '#1B2631')])
@@ -849,7 +886,7 @@ class MainMenu:
         stress = self.forms._f(self.forms.vars['loading'].get('stress'))
         radius = self.forms._f(self.forms.vars['loading'].get('radius'))
 
-        fig = Figure(figsize=(8.4, 2.6), dpi=90)
+        fig = Figure(figsize=(8.4, 2.6), dpi=S(90))
         fig.patch.set_facecolor('#FCFCFA')
         ax = fig.add_subplot(111)
         ax.set_facecolor('#FCFCFA')
@@ -990,7 +1027,7 @@ class MainMenu:
             ax.fill(np.concatenate([lxs[m], rxs[m][::-1]]), np.concatenate([yv, yv[::-1]]),
                     facecolor=fc, alpha=alpha, edgecolor='none', zorder=3)
 
-        fig = Figure(figsize=(8, 4.3), dpi=95)
+        fig = Figure(figsize=(8, 4.3), dpi=S(95))
         fig.patch.set_facecolor('#FCFCFA')
         fig.suptitle('Distribution of Back-Calculated Elastic Modulus', fontsize=12, fontweight='bold', y=0.97, family='serif')
         axes = [fig.add_subplot(1, num_layers, j + 1) for j in range(num_layers)]
@@ -1111,8 +1148,8 @@ class MainMenu:
     # ------- Forward profile helpers -------
     def toggle_profile_view(self):
         if not self.is_profile_open:
-            self.forward_window.geometry('1500x620')
-            self.plot_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
+            self.forward_window.geometry(f'{S(1500)}x{S(620)}')
+            self.fw_paned.add(self.plot_frame, minsize=S(320))
             self.profile_btn.config(text="<< Hide Profile Plot")
             self.is_profile_open = True  # set before fw_run(): _fw_finish_task() checks this flag
             if self._has_deflection_data():
@@ -1120,8 +1157,8 @@ class MainMenu:
             else:
                 self.fw_run()  # async; _fw_finish_task() draws the plot once it completes
         else:
-            self.plot_frame.pack_forget()
-            self.forward_window.geometry('740x620')
+            self.fw_paned.forget(self.plot_frame)
+            self.forward_window.geometry(f'{S(740)}x{S(620)}')
             self.profile_btn.config(text="Show Profile Plot >>")
             self.is_profile_open = False
 
@@ -1145,7 +1182,7 @@ class MainMenu:
             tk.Label(self.plot_frame, text="No valid data to plot.", fg="#e74c3c", bg="white", font=("Arial", 13)).place(relx=0.5, rely=0.5, anchor="center")
             return
 
-        fig = Figure(figsize=(5.2, 4.2), dpi=100)
+        fig = Figure(figsize=(5.2, 4.2), dpi=S(100))
         fig.patch.set_facecolor('white')
         ax = fig.add_subplot(111)
         ax.scatter(r_values, [-d for d in defl_values], marker='o', color='#2C3E50', zorder=3)
@@ -1184,12 +1221,13 @@ class MainMenu:
         self.root.withdraw()
 
         self.slo_window = tk.Toplevel(self.root)
-        self.slo_window.geometry('960x800')
+        self.slo_window.geometry(f'{S(960)}x{S(800)}')
+        self.slo_window.minsize(S(820), S(640))
         self.slo_window.title('WuWan v0.3 - Sensor Location Optimization')
         self.slo_window.configure(bg='#F5F2E8')
 
         # --- Top toolbar ---
-        top_bar = tk.Frame(self.slo_window, height=42, bg="#2C3E50")
+        top_bar = tk.Frame(self.slo_window, height=S(42), bg="#2C3E50")
         top_bar.pack(side=tk.TOP, fill=tk.X)
         top_bar.pack_propagate(False)
 
@@ -1204,26 +1242,27 @@ class MainMenu:
                  font=("Georgia", 12, "bold"),
                  bg="#2C3E50", fg="white").pack(side=tk.LEFT, padx=15)
 
-        # --- Main container ---
-        main_container = tk.Frame(self.slo_window, bg='#F5F2E8')
+        # --- Main container: resizable sidebar | work area split ---
+        main_container = tk.PanedWindow(self.slo_window, orient=tk.HORIZONTAL,
+                                        bg='#D6D3C7', sashwidth=S(5),
+                                        sashrelief=tk.FLAT, bd=0, opaqueresize=True)
         main_container.pack(fill=tk.BOTH, expand=True)
 
         # --- Left sidebar ---
-        sidebar = tk.Frame(main_container, width=240, bg="#E8E4D8",
+        sidebar = tk.Frame(main_container, bg="#E8E4D8",
                            highlightbackground="#BDB7A4", highlightthickness=1)
-        sidebar.pack(side=tk.LEFT, fill=tk.Y)
-        sidebar.pack_propagate(False)
+        main_container.add(sidebar, width=S(240), minsize=S(170))
 
         # --- Right area: whiteboard + output ---
         right_area = tk.Frame(main_container, bg='#F5F2E8')
-        right_area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        main_container.add(right_area, minsize=S(520))
 
         # Bottom output
-        output_container = tk.Frame(right_area, bg="#FCFCFA", height=170)
+        output_container = tk.Frame(right_area, bg="#FCFCFA", height=S(170))
         output_container.pack(side=tk.BOTTOM, fill=tk.X)
         output_container.pack_propagate(False)
 
-        out_header = tk.Frame(output_container, bg="#2C3E50", height=24)
+        out_header = tk.Frame(output_container, bg="#2C3E50", height=S(24))
         out_header.pack(side=tk.TOP, fill=tk.X)
         out_header.pack_propagate(False)
         tk.Label(out_header, text="  ▼ Output Log",
@@ -1564,7 +1603,7 @@ class MainMenu:
 
         style = ttk.Style()
         style.theme_use('clam')
-        style.configure("SLOMetric.Treeview", rowheight=26, font=("Consolas", 13),
+        style.configure("SLOMetric.Treeview", rowheight=S(26), font=("Consolas", 13),
                         background='#FCFCFA', fieldbackground='#FCFCFA', foreground='#1B2631')
         style.configure("SLOMetric.Treeview.Heading", font=("Segoe UI", 13, "bold"),
                         background='#4A5568', foreground='white')
@@ -1593,7 +1632,7 @@ class MainMenu:
         tk.Label(pos_frame, text="Sensor Layout — Initial vs Optimized", font=("Georgia", 13, "bold"),
                  bg="#FCFCFA", fg="#8B6F47").pack(anchor='w', pady=(0, 4))
 
-        style.configure("SLOPos.Treeview", rowheight=24, font=("Consolas", 12),
+        style.configure("SLOPos.Treeview", rowheight=S(24), font=("Consolas", 12),
                         background='#FCFCFA', fieldbackground='#FCFCFA', foreground='#1B2631')
         style.configure("SLOPos.Treeview.Heading", font=("Segoe UI", 12, "bold"),
                         background='#4A5568', foreground='white')
@@ -1624,7 +1663,7 @@ class MainMenu:
         tk.Label(hint, text="ℹ  Open PREVIEW in the sidebar for the DE convergence curve (①), the "
                  "before/after modulus distribution comparison (②), and the sensor layout comparison (③).",
                  font=("Segoe UI", 11, "italic"), bg='#EFEBDC', fg='#5D4E37',
-                 wraplength=640, justify='left').pack(fill=tk.X, padx=12, pady=10)
+                 wraplength=S(640), justify='left').pack(fill=tk.X, padx=12, pady=10)
 
     # ------- Preview: button handlers -------
     def slo_preview_convergence(self):
@@ -1679,7 +1718,7 @@ class MainMenu:
         for w in parent.winfo_children():
             w.destroy()
 
-        fig = Figure(figsize=(7.6, 3.6), dpi=95)
+        fig = Figure(figsize=(7.6, 3.6), dpi=S(95))
         fig.patch.set_facecolor('#FCFCFA')
         ax = fig.add_subplot(111)
         ax.set_facecolor('#FAF8F0')
@@ -1727,7 +1766,7 @@ class MainMenu:
 
         from matplotlib.lines import Line2D
 
-        fig = Figure(figsize=(7.6, 3.2), dpi=95)
+        fig = Figure(figsize=(7.6, 3.2), dpi=S(95))
         fig.patch.set_facecolor('#FCFCFA')
         ax = fig.add_subplot(111)
         ax.set_facecolor('#FAF8F0')
@@ -1891,7 +1930,7 @@ class MainMenu:
         # of being pushed off-screen.
         fig_w = min(max(7.8, 1.55 * num_layers + 1.0), 9.4)
         fig_h = 4.6
-        fig = Figure(figsize=(fig_w, fig_h), dpi=95)
+        fig = Figure(figsize=(fig_w, fig_h), dpi=S(95))
         fig.patch.set_facecolor('#FCFCFA')
         fig.suptitle('Distribution of Back-Calculated Elastic Modulus  '
                     '(Initial vs Optimized Layout)',
@@ -2569,7 +2608,7 @@ class InputFormsManager:
         tk.Label(hint, text="ℹ  Fixed sensors are taken from the FIRST N rows of the Deflections table "
                  "(by Point order); the remaining (10 − N) sensors are optimized within [r_min, r_max].",
                  font=("Segoe UI", 11, "italic"), bg='#EFEBDC', fg='#5D4E37',
-                 wraplength=560, justify='left').pack(fill=tk.X, padx=12, pady=8)
+                 wraplength=S(560), justify='left').pack(fill=tk.X, padx=12, pady=8)
 
         self.vars['slo_settings'] = store
         self.modules['slo_settings'] = outer
