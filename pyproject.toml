@@ -6,8 +6,8 @@ build-backend = "scikit_build_core.build"
 name = "WuWan_pavement_forward"
 version = "0.3.1"
 dependencies = [
-    "numpy==1.26.4", 
-    "pandas==2.3.3"
+    "numpy>=2.0",
+    "pandas>=2.0"
 ]
 
 
