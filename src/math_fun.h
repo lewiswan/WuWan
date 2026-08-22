@@ -1,10 +1,15 @@
 // src/math_fun.h
 #ifndef EIGEN_VECTORIZE
-#define EIGEN_VECTORIZE  
+#define EIGEN_VECTORIZE
 #endif
 
-#define EIGEN_DONT_ALIGN_STATICALLY 0 
+#define EIGEN_DONT_ALIGN_STATICALLY 0
 #pragma once
+#if defined(_MSC_VER)
+#define RESTRICT __restrict
+#else
+#define RESTRICT __restrict__
+#endif
 #include <iostream>
 #include "structures.h" 
 #include "bessel_table.h"
